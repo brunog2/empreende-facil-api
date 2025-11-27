@@ -547,96 +547,10 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
       );
     }
 
-    // Criar foreign keys e índices apenas se as tabelas relacionadas existirem
-    // Foreign keys para categories
-    if (!tablesExist[1] || !tablesExist[0]) {
-      // Só criar se a tabela categories acabou de ser criada
-      if (!tablesExist[1]) {
-        await queryRunner.createForeignKey(
-          'categories',
-          new TableForeignKey({
-            columnNames: ['user_id'],
-            referencedColumnNames: ['id'],
-            referencedTableName: 'users',
-            onDelete: 'CASCADE',
-          }),
-        );
-      }
-    }
-
-    // Foreign keys para products
-    if (!tablesExist[2]) {
-      await queryRunner.createForeignKey(
-        'products',
-        new TableForeignKey({
-          columnNames: ['user_id'],
-          referencedColumnNames: ['id'],
-          referencedTableName: 'users',
-          onDelete: 'CASCADE',
-        }),
-      );
-
-      await queryRunner.createForeignKey(
-        'products',
-        new TableForeignKey({
-          columnNames: ['category'],
-          referencedColumnNames: ['id'],
-          referencedTableName: 'categories',
-          onDelete: 'SET NULL',
-        }),
-      );
-    }
-
-    // Foreign keys para customers
-    if (!tablesExist[3]) {
-      await queryRunner.createForeignKey(
-        'customers',
-        new TableForeignKey({
-          columnNames: ['user_id'],
-          referencedColumnNames: ['id'],
-          referencedTableName: 'users',
-          onDelete: 'CASCADE',
-        }),
-      );
-    }
-
-    // Foreign keys para expenses
-    if (!tablesExist[4]) {
-      await queryRunner.createForeignKey(
-        'expenses',
-        new TableForeignKey({
-          columnNames: ['user_id'],
-          referencedColumnNames: ['id'],
-          referencedTableName: 'users',
-          onDelete: 'CASCADE',
-        }),
-      );
-    }
-
-    // Foreign keys para sales
-    if (!tablesExist[5]) {
-      await queryRunner.createForeignKey(
-        'sales',
-        new TableForeignKey({
-          columnNames: ['user_id'],
-          referencedColumnNames: ['id'],
-          referencedTableName: 'users',
-          onDelete: 'CASCADE',
-        }),
-      );
-
-      await queryRunner.createForeignKey(
-        'sales',
-        new TableForeignKey({
-          columnNames: ['customer_id'],
-          referencedColumnNames: ['id'],
-          referencedTableName: 'customers',
-          onDelete: 'SET NULL',
-        }),
-      );
-    }
-
-    // Foreign keys para sale_items
+    // Criar foreign keys e índices para sale_items apenas se a tabela foi criada
+    // NOTA: Foreign keys e índices para categories, products, customers, expenses e sales
+    // já foram criados dentro dos blocos de criação de tabelas acima (linhas 129-154, 222-248,
+    // 306-322, 385-409, 464-498), então não precisam ser criados novamente aqui.
     if (!tablesExist[6]) {
       await queryRunner.createForeignKey(
         'sale_items',
@@ -654,7 +568,7 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
           columnNames: ['product_id'],
           referencedColumnNames: ['id'],
           referencedTableName: 'products',
-          onDelete: 'RESTRICT',
+          onDelete: 'SET NULL',
         }),
       );
     }
