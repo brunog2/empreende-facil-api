@@ -28,7 +28,7 @@ export class SaleItem {
   @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @Column({ type: 'int' })
+  @Column({ type: 'decimal', precision: 10, scale: 3 })
   quantity: number;
 
   @Column({ name: 'unit_price', type: 'decimal', precision: 10, scale: 2 })

@@ -2,6 +2,13 @@ import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } f
 
 export class CreateInitialTables1700000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Verificar se as tabelas já existem (para bancos que foram criados com synchronize)
+    const usersTableExists = await queryRunner.hasTable('users');
+    if (usersTableExists) {
+      console.log('Tabelas já existem. Pulando criação inicial...');
+      return;
+    }
+
     // Create users table
     await queryRunner.createTable(
       new Table({
@@ -161,7 +168,9 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
           },
           {
             name: 'stock_quantity',
-            type: 'int',
+            type: 'decimal',
+            precision: 10,
+            scale: 3,
             default: 0,
           },
           {
@@ -462,7 +471,9 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
           },
           {
             name: 'quantity',
-            type: 'int',
+            type: 'decimal',
+            precision: 10,
+            scale: 3,
           },
           {
             name: 'unit_price',

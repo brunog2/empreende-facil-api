@@ -38,7 +38,7 @@ export class Product {
   @Column({ name: 'sale_price', type: 'decimal', precision: 10, scale: 2 })
   salePrice: number;
 
-  @Column({ name: 'stock_quantity', type: 'int', default: 0 })
+  @Column({ name: 'stock_quantity', type: 'decimal', precision: 10, scale: 3, default: 0 })
   stockQuantity: number;
 
   @CreateDateColumn({ name: 'created_at' })
