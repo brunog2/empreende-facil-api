@@ -32,13 +32,41 @@ export class Product {
   @Column({ nullable: true })
   category: string | null;
 
-  @Column({ name: 'cost_price', type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    name: 'cost_price',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
   costPrice: number;
 
-  @Column({ name: 'sale_price', type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    name: 'sale_price',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
   salePrice: number;
 
-  @Column({ name: 'stock_quantity', type: 'decimal', precision: 10, scale: 3, default: 0 })
+  @Column({
+    name: 'stock_quantity',
+    type: 'decimal',
+    precision: 10,
+    scale: 3,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
   stockQuantity: number;
 
   @CreateDateColumn({ name: 'created_at' })

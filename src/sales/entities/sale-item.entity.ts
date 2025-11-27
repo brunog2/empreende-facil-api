@@ -28,13 +28,38 @@ export class SaleItem {
   @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @Column({ type: 'decimal', precision: 10, scale: 3 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 3,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
   quantity: number;
 
-  @Column({ name: 'unit_price', type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    name: 'unit_price',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
   unitPrice: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
   subtotal: number;
 
   @CreateDateColumn({ name: 'created_at' })

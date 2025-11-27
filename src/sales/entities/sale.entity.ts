@@ -30,7 +30,16 @@ export class Sale {
   @JoinColumn({ name: 'customer_id' })
   customer: Customer | null;
 
-  @Column({ name: 'total_amount', type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    name: 'total_amount',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
   totalAmount: number;
 
   @Column({ name: 'payment_method', nullable: true })
