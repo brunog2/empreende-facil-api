@@ -3,6 +3,9 @@ import { SalesRepository } from './repositories/sales.repository';
 import { ProductsRepository } from '../products/repositories/products.repository';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
+import { FilterSalesDto } from './dto/filter-sales.dto';
+import { PaginatedResponse } from '../common/dto/pagination.dto';
+import { Sale } from './entities/sale.entity';
 
 @Injectable()
 export class SalesService {
@@ -13,6 +16,13 @@ export class SalesService {
 
   async getAllSales(userId: string) {
     return this.repository.findAll(userId);
+  }
+
+  async getSalesWithFilters(
+    userId: string,
+    filters: FilterSalesDto,
+  ): Promise<PaginatedResponse<Sale>> {
+    return this.repository.findWithFilters(userId, filters);
   }
 
   async getSaleById(id: string, userId: string) {
@@ -52,14 +62,25 @@ export class SalesService {
       );
     }
 
-    // Criar a venda
+    // Criar a venda com dados denormalizados do produto
+    const itemsWithProductData = await Promise.all(
+      data.items.map(async (item) => {
+        const product = await this.productsRepository.findById(item.productId, userId);
+        return {
+          ...item,
+          productName: product?.name || null,
+          productPrice: product?.salePrice || item.unitPrice,
+        };
+      }),
+    );
+
     const sale = await this.repository.create(userId, {
       customerId: data.customerId,
       totalAmount: data.totalAmount,
       paymentMethod: data.paymentMethod,
       notes: data.notes,
       saleDate: data.saleDate,
-      items: data.items,
+      items: itemsWithProductData,
     });
 
     // Atualizar estoque dos produtos
@@ -146,8 +167,23 @@ export class SalesService {
         }
       }
 
+      // Preparar itens com dados denormalizados do produto
+      const itemsWithProductData = await Promise.all(
+        data.items.map(async (item) => {
+          const product = await this.productsRepository.findById(item.productId, userId);
+          return {
+            ...item,
+            productName: product?.name || null,
+            productPrice: product?.salePrice || item.unitPrice,
+          };
+        }),
+      );
+
       // Agora atualizar a venda (estoque já foi ajustado)
-      const updatedSale = await this.repository.update(id, userId, data);
+      const updatedSale = await this.repository.update(id, userId, {
+        ...data,
+        items: itemsWithProductData,
+      });
 
       return updatedSale;
     }
@@ -161,18 +197,46 @@ export class SalesService {
       throw new NotFoundException('Venda não encontrada');
     }
 
-    // Restaurar estoque dos produtos
+    // Restaurar estoque dos produtos (se produto ainda existir)
     for (const item of sale.saleItems) {
-      const product = await this.productsRepository.findById(item.productId, userId);
-      if (product) {
-        product.stockQuantity += item.quantity;
-        await this.productsRepository.update(product.id, userId, {
-          stockQuantity: product.stockQuantity,
-        });
+      if (item.productId) {
+        const product = await this.productsRepository.findById(item.productId, userId);
+        if (product) {
+          product.stockQuantity += item.quantity;
+          await this.productsRepository.update(product.id, userId, {
+            stockQuantity: product.stockQuantity,
+          });
+        }
       }
     }
 
     return this.repository.delete(id, userId);
+  }
+
+  async bulkDeleteSales(ids: string[], userId: string) {
+    if (!ids || ids.length === 0) {
+      throw new BadRequestException('Nenhuma venda selecionada para exclusão');
+    }
+
+    // Restaurar estoque para todas as vendas
+    for (const saleId of ids) {
+      const sale = await this.repository.findById(saleId, userId);
+      if (sale) {
+        for (const item of sale.saleItems) {
+          if (item.productId) {
+            const product = await this.productsRepository.findById(item.productId, userId);
+            if (product) {
+              product.stockQuantity += item.quantity;
+              await this.productsRepository.update(product.id, userId, {
+                stockQuantity: product.stockQuantity,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return this.repository.bulkDelete(ids, userId);
   }
 
   async getMonthlyTotal(userId: string, year: number, month: number) {

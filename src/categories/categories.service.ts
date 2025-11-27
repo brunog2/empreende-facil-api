@@ -1,14 +1,28 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
 import { CategoriesRepository } from './repositories/categories.repository';
+import { ProductsRepository } from '../products/repositories/products.repository';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { FilterCategoriesDto } from './dto/filter-categories.dto';
+import { PaginatedResponse } from '../common/dto/pagination.dto';
+import { Category } from './entities/category.entity';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private repository: CategoriesRepository) {}
+  constructor(
+    private repository: CategoriesRepository,
+    private productsRepository: ProductsRepository,
+  ) {}
 
   async getAllCategories(userId: string) {
     return this.repository.findAll(userId);
+  }
+
+  async getCategoriesWithFilters(
+    userId: string,
+    filters: FilterCategoriesDto,
+  ): Promise<PaginatedResponse<Category>> {
+    return this.repository.findWithFilters(userId, filters);
   }
 
   async getCategoryById(id: string, userId: string) {
@@ -54,7 +68,33 @@ export class CategoriesService {
   }
 
   async deleteCategory(id: string, userId: string) {
+    // Remover categoria de produtos que a utilizam
+    const products = await this.productsRepository.findByCategory(userId, id);
+    for (const product of products) {
+      await this.productsRepository.update(product.id, userId, {
+        category: null,
+      });
+    }
+
     return this.repository.delete(id, userId);
+  }
+
+  async bulkDeleteCategories(ids: string[], userId: string) {
+    if (!ids || ids.length === 0) {
+      throw new BadRequestException('Nenhuma categoria selecionada para exclusão');
+    }
+
+    // Remover categorias de produtos que as utilizam
+    for (const categoryId of ids) {
+      const products = await this.productsRepository.findByCategory(userId, categoryId);
+      for (const product of products) {
+        await this.productsRepository.update(product.id, userId, {
+          category: null,
+        });
+      }
+    }
+
+    return this.repository.bulkDelete(ids, userId);
   }
 
   async searchCategories(userId: string, query: string) {

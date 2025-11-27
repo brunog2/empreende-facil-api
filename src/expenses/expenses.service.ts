@@ -51,6 +51,13 @@ export class ExpensesService {
     return this.repository.delete(id, userId);
   }
 
+  async bulkDeleteExpenses(ids: string[], userId: string) {
+    if (!ids || ids.length === 0) {
+      throw new BadRequestException('Nenhuma despesa selecionada para exclusão');
+    }
+    return this.repository.bulkDelete(ids, userId);
+  }
+
   async getExpensesByCategory(userId: string, category: string) {
     return this.repository.findByCategory(userId, category);
   }

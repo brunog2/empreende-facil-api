@@ -2,6 +2,9 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { CustomersRepository } from './repositories/customers.repository';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { FilterCustomersDto } from './dto/filter-customers.dto';
+import { PaginatedResponse } from '../common/dto/pagination.dto';
+import { Customer } from './entities/customer.entity';
 
 @Injectable()
 export class CustomersService {
@@ -9,6 +12,13 @@ export class CustomersService {
 
   async getAllCustomers(userId: string) {
     return this.repository.findAll(userId);
+  }
+
+  async getCustomersWithFilters(
+    userId: string,
+    filters: FilterCustomersDto,
+  ): Promise<PaginatedResponse<Customer>> {
+    return this.repository.findWithFilters(userId, filters);
   }
 
   async getCustomerById(id: string, userId: string) {
@@ -50,6 +60,13 @@ export class CustomersService {
 
   async deleteCustomer(id: string, userId: string) {
     return this.repository.delete(id, userId);
+  }
+
+  async bulkDeleteCustomers(ids: string[], userId: string) {
+    if (!ids || ids.length === 0) {
+      throw new BadRequestException('Nenhum cliente selecionado para exclusão');
+    }
+    return this.repository.bulkDelete(ids, userId);
   }
 
   async searchCustomers(userId: string, query: string) {

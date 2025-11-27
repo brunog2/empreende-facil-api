@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like } from 'typeorm';
+import { Repository, Between, Like, In } from 'typeorm';
 import { Expense } from '../entities/expense.entity';
 
 @Injectable()
@@ -76,6 +76,22 @@ export class ExpensesRepository {
     if (result.affected === 0) {
       throw new Error('Despesa não encontrada');
     }
+  }
+
+  async bulkDelete(ids: string[], userId: string): Promise<void> {
+    // Verificar se todas as despesas pertencem ao usuário
+    const expenses = await this.repository.find({
+      where: { id: In(ids), userId },
+    });
+
+    if (expenses.length !== ids.length) {
+      throw new Error('Algumas despesas não foram encontradas ou não pertencem ao usuário');
+    }
+
+    await this.repository.delete({
+      id: In(ids),
+      userId,
+    });
   }
 
   async findByCategory(userId: string, category: string): Promise<Expense[]> {

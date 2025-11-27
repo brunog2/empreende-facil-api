@@ -16,8 +16,10 @@ export async function runMigrations(configService: ConfigService): Promise<void>
     } : false,
   });
 
+  let isInitialized = false;
   try {
     await dataSource.initialize();
+    isInitialized = true;
     console.log('Running migrations...');
     const migrations = await dataSource.runMigrations();
     
@@ -30,10 +32,18 @@ export async function runMigrations(configService: ConfigService): Promise<void>
       console.log('✅ No pending migrations');
     }
     
-    await dataSource.destroy();
+    if (isInitialized) {
+      await dataSource.destroy();
+    }
   } catch (error) {
     console.error('❌ Error running migrations:', error);
-    await dataSource.destroy();
+    if (isInitialized) {
+      try {
+        await dataSource.destroy();
+      } catch (destroyError) {
+        console.error('❌ Error destroying data source:', destroyError);
+      }
+    }
     // Não lançar erro para não impedir o startup se migrations falharem
     // A aplicação ainda pode iniciar se as tabelas já existirem
   }

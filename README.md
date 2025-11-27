@@ -77,28 +77,34 @@ backend/
 - `GET /api/auth/me` - Obter usuário atual
 
 ### Produtos
-- `GET /api/products` - Listar produtos
+- `GET /api/products` - Listar produtos (com paginação e filtros)
+  - Query params: `page`, `limit`, `search`, `categories[]`, `lowStock`, `minSalePrice`, `maxSalePrice`, `minCostPrice`, `maxCostPrice`
 - `GET /api/products/:id` - Obter produto
 - `POST /api/products` - Criar produto
 - `PATCH /api/products/:id` - Atualizar produto
-- `DELETE /api/products/:id` - Excluir produto
+- `DELETE /api/products/:id` - Excluir produto (soft delete)
+- `DELETE /api/products/bulk` - Excluir múltiplos produtos (soft delete)
 - `GET /api/products/low-stock` - Produtos com estoque baixo
 
 ### Vendas
-- `GET /api/sales` - Listar vendas
+- `GET /api/sales` - Listar vendas (com paginação e filtros)
+  - Query params: `page`, `limit`, `search`, `categories[]`, `products[]`, `startDate`, `endDate`
 - `GET /api/sales/:id` - Obter venda
 - `POST /api/sales` - Criar venda
 - `PATCH /api/sales/:id` - Atualizar venda
 - `DELETE /api/sales/:id` - Excluir venda
+- `DELETE /api/sales/bulk` - Excluir múltiplas vendas
 - `GET /api/sales/monthly-total` - Total mensal
 - `GET /api/sales/top-products` - Produtos mais vendidos
 
 ### Clientes
-- `GET /api/customers` - Listar clientes
+- `GET /api/customers` - Listar clientes (com paginação e filtros)
+  - Query params: `page`, `limit`, `search`
 - `GET /api/customers/:id` - Obter cliente
 - `POST /api/customers` - Criar cliente
 - `PATCH /api/customers/:id` - Atualizar cliente
 - `DELETE /api/customers/:id` - Excluir cliente
+- `DELETE /api/customers/bulk` - Excluir múltiplos clientes
 - `GET /api/customers/search?q=...` - Buscar clientes
 
 ### Despesas
@@ -107,17 +113,50 @@ backend/
 - `POST /api/expenses` - Criar despesa
 - `PATCH /api/expenses/:id` - Atualizar despesa
 - `DELETE /api/expenses/:id` - Excluir despesa
+- `DELETE /api/expenses/bulk` - Excluir múltiplas despesas
 - `GET /api/expenses/monthly-total` - Total mensal
 - `GET /api/expenses/by-category` - Por categoria
 - `GET /api/expenses/recurring` - Recorrentes
 
 ### Categorias
-- `GET /api/categories` - Listar categorias
+- `GET /api/categories` - Listar categorias (com paginação e filtros)
+  - Query params: `page`, `limit`, `search`
 - `GET /api/categories/:id` - Obter categoria
 - `POST /api/categories` - Criar categoria
 - `PATCH /api/categories/:id` - Atualizar categoria
-- `DELETE /api/categories/:id` - Excluir categoria
+- `DELETE /api/categories/:id` - Excluir categoria (remove referências em produtos)
+- `DELETE /api/categories/bulk` - Excluir múltiplas categorias
 - `GET /api/categories/search?q=...` - Buscar categorias
+
+## Funcionalidades
+
+### Paginação
+Todos os endpoints de listagem suportam paginação via query params:
+- `page`: Número da página (padrão: 1)
+- `limit`: Itens por página (padrão: 10, máximo: 100)
+
+Resposta formatada:
+```json
+{
+  "data": [...],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 50,
+    "totalPages": 5
+  }
+}
+```
+
+### Filtros
+Endpoints de listagem suportam filtros específicos via query params (veja documentação de cada endpoint acima).
+
+### Soft Delete
+Produtos usam soft delete (campo `deletedAt`). Produtos deletados não aparecem nas listagens, mas permanecem no banco para manter integridade referencial com vendas.
+
+### Bulk Delete
+Endpoints de exclusão em massa disponíveis para: produtos, vendas, categorias, clientes e despesas.
+- Body: `{ "ids": ["uuid1", "uuid2", ...] }`
 
 ## Autenticação
 
@@ -127,5 +166,9 @@ Envie o token no header:
 ```
 Authorization: Bearer <token>
 ```
+
+## Migrations
+
+As migrations são executadas automaticamente na inicialização da aplicação. A migration inicial verifica se as tabelas já existem antes de criá-las, permitindo execução segura em bancos parcialmente configurados.
 
 

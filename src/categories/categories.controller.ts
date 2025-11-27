@@ -12,6 +12,8 @@ import {
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { FilterCategoriesDto } from './dto/filter-categories.dto';
+import { BulkDeleteDto } from '../common/dto/bulk-delete.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -21,7 +23,15 @@ export class CategoriesController {
   constructor(private categoriesService: CategoriesService) {}
 
   @Get()
-  findAll(@CurrentUser() user: { id: string }) {
+  findAll(
+    @CurrentUser() user: { id: string },
+    @Query() filters: FilterCategoriesDto,
+  ) {
+    // Se houver filtros ou paginação, usar o método com filtros
+    if (filters.page || filters.limit || filters.search) {
+      return this.categoriesService.getCategoriesWithFilters(user.id, filters);
+    }
+    // Caso contrário, retornar todos (compatibilidade)
     return this.categoriesService.getAllCategories(user.id);
   }
 
@@ -57,6 +67,14 @@ export class CategoriesController {
     @CurrentUser() user: { id: string },
   ) {
     return this.categoriesService.updateCategory(id, user.id, updateCategoryDto);
+  }
+
+  @Delete('bulk')
+  bulkDelete(
+    @Body() bulkDeleteDto: BulkDeleteDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.categoriesService.bulkDeleteCategories(bulkDeleteDto.ids, user.id);
   }
 
   @Delete(':id')

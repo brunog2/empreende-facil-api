@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, In } from 'typeorm';
 import { Sale } from '../entities/sale.entity';
 import { SaleItem } from '../entities/sale-item.entity';
+import { FilterSalesDto } from '../dto/filter-sales.dto';
+import { PaginatedResponse } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class SalesRepository {
@@ -19,6 +21,74 @@ export class SalesRepository {
       relations: ['customer', 'saleItems', 'saleItems.product'],
       order: { saleDate: 'DESC' },
     });
+  }
+
+  async findWithFilters(
+    userId: string,
+    filters: FilterSalesDto,
+  ): Promise<PaginatedResponse<Sale>> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      categories,
+      products,
+      startDate,
+      endDate,
+    } = filters;
+
+    const queryBuilder = this.saleRepository
+      .createQueryBuilder('sale')
+      .leftJoinAndSelect('sale.customer', 'customer')
+      .leftJoinAndSelect('sale.saleItems', 'saleItems')
+      .leftJoinAndSelect('saleItems.product', 'product')
+      .where('sale.userId = :userId', { userId });
+
+    // Filtro de busca (nome do produto nos itens)
+    if (search) {
+      queryBuilder.andWhere(
+        '(product.name ILIKE :search OR customer.name ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    // Filtro de categorias (através dos produtos)
+    if (categories && categories.length > 0) {
+      queryBuilder.andWhere('product.category IN (:...categories)', { categories });
+    }
+
+    // Filtro de produtos
+    if (products && products.length > 0) {
+      queryBuilder.andWhere('product.id IN (:...products)', { products });
+    }
+
+    // Filtro de data
+    if (startDate) {
+      queryBuilder.andWhere('sale.saleDate >= :startDate', { startDate });
+    }
+    if (endDate) {
+      queryBuilder.andWhere('sale.saleDate <= :endDate', { endDate });
+    }
+
+    // Ordenação
+    queryBuilder.orderBy('sale.saleDate', 'DESC');
+
+    // Paginação
+    const skip = (page - 1) * limit;
+    queryBuilder.skip(skip).take(limit);
+
+    // Contar total
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findById(id: string, userId: string): Promise<Sale | null> {
@@ -40,6 +110,8 @@ export class SalesRepository {
         productId: string;
         quantity: number;
         unitPrice: number;
+        productName?: string | null;
+        productPrice?: number | null;
       }>;
     },
   ): Promise<Sale> {
@@ -61,6 +133,8 @@ export class SalesRepository {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         subtotal: item.quantity * item.unitPrice,
+        productName: item.productName || null,
+        productPrice: item.productPrice || null,
       }),
     );
 
@@ -82,6 +156,8 @@ export class SalesRepository {
         productId: string;
         quantity: number;
         unitPrice: number;
+        productName?: string | null;
+        productPrice?: number | null;
       }>;
     },
   ): Promise<Sale> {
@@ -108,6 +184,8 @@ export class SalesRepository {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           subtotal: item.quantity * item.unitPrice,
+          productName: item.productName || null,
+          productPrice: item.productPrice || null,
         }),
       );
 
@@ -122,6 +200,22 @@ export class SalesRepository {
     if (result.affected === 0) {
       throw new Error('Venda não encontrada');
     }
+  }
+
+  async bulkDelete(ids: string[], userId: string): Promise<void> {
+    // Verificar se todas as vendas pertencem ao usuário
+    const sales = await this.saleRepository.find({
+      where: { id: In(ids), userId },
+    });
+
+    if (sales.length !== ids.length) {
+      throw new Error('Algumas vendas não foram encontradas ou não pertencem ao usuário');
+    }
+
+    await this.saleRepository.delete({
+      id: In(ids),
+      userId,
+    });
   }
 
   async getMonthlyTotal(userId: string, year: number, month: number): Promise<number> {

@@ -2,15 +2,42 @@ import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } f
 
 export class CreateInitialTables1700000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Verificar se as tabelas já existem (para bancos que foram criados com synchronize)
-    const usersTableExists = await queryRunner.hasTable('users');
-    if (usersTableExists) {
-      console.log('Tabelas já existem. Pulando criação inicial...');
+    // Lista de todas as tabelas que esta migration cria
+    const requiredTables = [
+      'users',
+      'categories',
+      'products',
+      'customers',
+      'expenses',
+      'sales',
+      'sale_items',
+    ];
+
+    // Verificar se TODAS as tabelas necessárias já existem
+    const tablesExistPromises = requiredTables.map((table) =>
+      queryRunner.hasTable(table),
+    );
+    const tablesExist = await Promise.all(tablesExistPromises);
+    const allTablesExist = tablesExist.every((exists) => exists === true);
+
+    if (allTablesExist) {
+      console.log('Todas as tabelas já existem. Pulando criação inicial...');
       return;
     }
 
-    // Create users table
-    await queryRunner.createTable(
+    // Se algumas tabelas existem mas outras não, logar quais estão faltando
+    const missingTables = requiredTables.filter(
+      (_, index) => !tablesExist[index],
+    );
+    if (missingTables.length > 0) {
+      console.log(
+        `Algumas tabelas estão faltando: ${missingTables.join(', ')}. Criando apenas as tabelas faltantes...`,
+      );
+    }
+
+    // Create users table (apenas se não existir)
+    if (!tablesExist[0]) {
+      await queryRunner.createTable(
       new Table({
         name: 'users',
         columns: [
@@ -56,10 +83,12 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         ],
       }),
       true,
-    );
+      );
+    }
 
-    // Create categories table
-    await queryRunner.createTable(
+    // Create categories table (apenas se não existir)
+    if (!tablesExist[1]) {
+      await queryRunner.createTable(
       new Table({
         name: 'categories',
         columns: [
@@ -124,8 +153,9 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
       }),
     );
 
-    // Create products table
-    await queryRunner.createTable(
+    // Create products table (apenas se não existir)
+    if (!tablesExist[2]) {
+      await queryRunner.createTable(
       new Table({
         name: 'products',
         columns: [
@@ -186,28 +216,40 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         ],
       }),
       true,
-    );
+      );
 
-    await queryRunner.createForeignKey(
-      'products',
-      new TableForeignKey({
-        columnNames: ['user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'users',
-        onDelete: 'CASCADE',
-      }),
-    );
+      await queryRunner.createForeignKey(
+        'products',
+        new TableForeignKey({
+          columnNames: ['user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'users',
+          onDelete: 'CASCADE',
+        }),
+      );
 
-    await queryRunner.createIndex(
-      'products',
-      new TableIndex({
-        name: 'idx_products_user_id',
-        columnNames: ['user_id'],
-      }),
-    );
+      await queryRunner.createForeignKey(
+        'products',
+        new TableForeignKey({
+          columnNames: ['category'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'categories',
+          onDelete: 'SET NULL',
+        }),
+      );
 
-    // Create customers table
-    await queryRunner.createTable(
+      await queryRunner.createIndex(
+        'products',
+        new TableIndex({
+          name: 'idx_products_user_id',
+          columnNames: ['user_id'],
+        }),
+      );
+    }
+
+    // Create customers table (apenas se não existir)
+    if (!tablesExist[3]) {
+      await queryRunner.createTable(
       new Table({
         name: 'customers',
         columns: [
@@ -276,10 +318,12 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         name: 'idx_customers_user_id',
         columnNames: ['user_id'],
       }),
-    );
+      );
+    }
 
-    // Create expenses table
-    await queryRunner.createTable(
+    // Create expenses table (apenas se não existir)
+    if (!tablesExist[4]) {
+      await queryRunner.createTable(
       new Table({
         name: 'expenses',
         columns: [
@@ -361,10 +405,12 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         name: 'idx_expenses_date',
         columnNames: ['expense_date'],
       }),
-    );
+      );
+    }
 
-    // Create sales table
-    await queryRunner.createTable(
+    // Create sales table (apenas se não existir)
+    if (!tablesExist[5]) {
+      await queryRunner.createTable(
       new Table({
         name: 'sales',
         columns: [
@@ -448,10 +494,12 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         name: 'idx_sales_date',
         columnNames: ['sale_date'],
       }),
-    );
+      );
+    }
 
-    // Create sale_items table
-    await queryRunner.createTable(
+    // Create sale_items table (apenas se não existir)
+    if (!tablesExist[6]) {
+      await queryRunner.createTable(
       new Table({
         name: 'sale_items',
         columns: [
@@ -495,17 +543,109 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         ],
       }),
       true,
-    );
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'sale_items',
-      new TableForeignKey({
-        columnNames: ['sale_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'sales',
-        onDelete: 'CASCADE',
-      }),
-    );
+    // Criar foreign keys e índices apenas se as tabelas relacionadas existirem
+    // Foreign keys para categories
+    if (!tablesExist[1] || !tablesExist[0]) {
+      // Só criar se a tabela categories acabou de ser criada
+      if (!tablesExist[1]) {
+        await queryRunner.createForeignKey(
+          'categories',
+          new TableForeignKey({
+            columnNames: ['user_id'],
+            referencedColumnNames: ['id'],
+            referencedTableName: 'users',
+            onDelete: 'CASCADE',
+          }),
+        );
+      }
+    }
+
+    // Foreign keys para products
+    if (!tablesExist[2]) {
+      await queryRunner.createForeignKey(
+        'products',
+        new TableForeignKey({
+          columnNames: ['user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'users',
+          onDelete: 'CASCADE',
+        }),
+      );
+
+      await queryRunner.createForeignKey(
+        'products',
+        new TableForeignKey({
+          columnNames: ['category'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'categories',
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
+
+    // Foreign keys para customers
+    if (!tablesExist[3]) {
+      await queryRunner.createForeignKey(
+        'customers',
+        new TableForeignKey({
+          columnNames: ['user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'users',
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
+
+    // Foreign keys para expenses
+    if (!tablesExist[4]) {
+      await queryRunner.createForeignKey(
+        'expenses',
+        new TableForeignKey({
+          columnNames: ['user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'users',
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
+
+    // Foreign keys para sales
+    if (!tablesExist[5]) {
+      await queryRunner.createForeignKey(
+        'sales',
+        new TableForeignKey({
+          columnNames: ['user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'users',
+          onDelete: 'CASCADE',
+        }),
+      );
+
+      await queryRunner.createForeignKey(
+        'sales',
+        new TableForeignKey({
+          columnNames: ['customer_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'customers',
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
+
+    // Foreign keys para sale_items
+    if (!tablesExist[6]) {
+      await queryRunner.createForeignKey(
+        'sale_items',
+        new TableForeignKey({
+          columnNames: ['sale_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'sales',
+          onDelete: 'CASCADE',
+        }),
+      );
 
     await queryRunner.createForeignKey(
       'sale_items',
@@ -517,7 +657,7 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
       }),
     );
 
-    // Create function to update updated_at
+    // Create function to update updated_at (CREATE OR REPLACE é seguro)
     await queryRunner.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
@@ -528,8 +668,9 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
       $$ language 'plpgsql';
     `);
 
-    // Create triggers for updated_at
+    // Create triggers for updated_at (DROP IF EXISTS para evitar erros)
     await queryRunner.query(`
+      DROP TRIGGER IF EXISTS update_users_updated_at ON users;
       CREATE TRIGGER update_users_updated_at
       BEFORE UPDATE ON users
       FOR EACH ROW
@@ -537,6 +678,7 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      DROP TRIGGER IF EXISTS update_products_updated_at ON products;
       CREATE TRIGGER update_products_updated_at
       BEFORE UPDATE ON products
       FOR EACH ROW
@@ -544,6 +686,7 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      DROP TRIGGER IF EXISTS update_customers_updated_at ON customers;
       CREATE TRIGGER update_customers_updated_at
       BEFORE UPDATE ON customers
       FOR EACH ROW
@@ -551,6 +694,7 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      DROP TRIGGER IF EXISTS update_expenses_updated_at ON expenses;
       CREATE TRIGGER update_expenses_updated_at
       BEFORE UPDATE ON expenses
       FOR EACH ROW
@@ -558,13 +702,14 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      DROP TRIGGER IF EXISTS update_categories_updated_at ON categories;
       CREATE TRIGGER update_categories_updated_at
       BEFORE UPDATE ON categories
       FOR EACH ROW
       EXECUTE FUNCTION update_updated_at_column();
     `);
 
-    // Create trigger to update product stock on sale
+    // Create trigger to update product stock on sale (CREATE OR REPLACE é seguro)
     await queryRunner.query(`
       CREATE OR REPLACE FUNCTION update_product_stock_on_sale()
       RETURNS TRIGGER AS $$
@@ -578,6 +723,7 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
     `);
 
     await queryRunner.query(`
+      DROP TRIGGER IF EXISTS on_sale_item_created ON sale_items;
       CREATE TRIGGER on_sale_item_created
       AFTER INSERT ON sale_items
       FOR EACH ROW

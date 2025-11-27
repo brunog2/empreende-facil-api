@@ -12,6 +12,7 @@ import {
 import { ExpensesService } from './expenses.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
+import { BulkDeleteDto } from '../common/dto/bulk-delete.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -74,6 +75,14 @@ export class ExpensesController {
     @CurrentUser() user: { id: string },
   ) {
     return this.expensesService.updateExpense(id, user.id, updateExpenseDto);
+  }
+
+  @Delete('bulk')
+  bulkDelete(
+    @Body() bulkDeleteDto: BulkDeleteDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.expensesService.bulkDeleteExpenses(bulkDeleteDto.ids, user.id);
   }
 
   @Delete(':id')

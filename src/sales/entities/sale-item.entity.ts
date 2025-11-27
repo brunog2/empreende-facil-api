@@ -21,12 +21,28 @@ export class SaleItem {
   @JoinColumn({ name: 'sale_id' })
   sale: Sale;
 
-  @Column({ name: 'product_id' })
-  productId: string;
+  @Column({ name: 'product_id', nullable: true })
+  productId: string | null;
 
-  @ManyToOne(() => Product, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Product, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'product_id' })
-  product: Product;
+  product: Product | null;
+
+  @Column({ name: 'product_name', nullable: true })
+  productName: string | null;
+
+  @Column({
+    name: 'product_price',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
+  productPrice: number | null;
 
   @Column({
     type: 'decimal',

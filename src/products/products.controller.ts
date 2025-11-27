@@ -6,11 +6,14 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { FilterProductsDto } from './dto/filter-products.dto';
+import { BulkDeleteDto } from '../common/dto/bulk-delete.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -20,7 +23,25 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Get()
-  findAll(@CurrentUser() user: { id: string }) {
+  findAll(
+    @CurrentUser() user: { id: string },
+    @Query() filters: FilterProductsDto,
+  ) {
+    // Se houver filtros ou paginação, usar o método com filtros
+    if (
+      filters.page ||
+      filters.limit ||
+      filters.search ||
+      filters.categories ||
+      filters.lowStock !== undefined ||
+      filters.minSalePrice ||
+      filters.maxSalePrice ||
+      filters.minCostPrice ||
+      filters.maxCostPrice
+    ) {
+      return this.productsService.getProductsWithFilters(user.id, filters);
+    }
+    // Caso contrário, retornar todos (compatibilidade)
     return this.productsService.getAllProducts(user.id);
   }
 
@@ -52,6 +73,14 @@ export class ProductsController {
     @CurrentUser() user: { id: string },
   ) {
     return this.productsService.updateProduct(id, user.id, updateProductDto);
+  }
+
+  @Delete('bulk')
+  bulkDelete(
+    @Body() bulkDeleteDto: BulkDeleteDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.productsService.bulkDeleteProducts(bulkDeleteDto.ids, user.id);
   }
 
   @Delete(':id')
