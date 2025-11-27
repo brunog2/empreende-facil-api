@@ -171,4 +171,86 @@ Authorization: Bearer <token>
 
 As migrations são executadas automaticamente na inicialização da aplicação. A migration inicial verifica se as tabelas já existem antes de criá-las, permitindo execução segura em bancos parcialmente configurados.
 
+### Executar migrations manualmente
+
+```bash
+# Executar todas as migrations pendentes
+npm run migration:run
+
+# Reverter última migration
+npm run migration:revert
+
+# Gerar nova migration (após alterar entidades)
+npm run migration:generate -- -n NomeDaMigration
+```
+
+## Denormalização de Dados
+
+A aplicação utiliza denormalização para preservar dados históricos:
+- **Vendas (`sale_items`)**: Armazena `product_name` e `product_price` no momento da venda
+- Isso garante que mesmo se um produto for deletado (soft delete), as informações da venda permanecem legíveis
+
+## Integridade de Dados
+
+### Soft Delete em Produtos
+- Produtos deletados não aparecem nas listagens
+- Produtos com vendas associadas não podem ser deletados (erro retornado)
+- Ao deletar uma categoria, produtos que a utilizam têm a categoria definida como `null`
+
+### Exclusão de Vendas
+- Ao excluir uma venda, o estoque dos produtos é restaurado automaticamente
+- Ao atualizar uma venda, apenas a diferença de quantidade é validada contra o estoque disponível
+
+## Desenvolvimento
+
+### Estrutura de Módulos
+Cada módulo segue o padrão:
+- `entities/` - Entidades TypeORM
+- `dto/` - Data Transfer Objects (validação)
+- `repositories/` - Camada de acesso a dados
+- `*.service.ts` - Lógica de negócio
+- `*.controller.ts` - Endpoints HTTP
+
+### Validação
+Todos os DTOs usam `class-validator` para validação automática de entrada.
+
+### Tratamento de Erros
+- Filtro global de exceções HTTP (`HttpExceptionFilter`)
+- Interceptor de transformação de respostas (`TransformInterceptor`)
+
+## Deploy
+
+### Variáveis de Ambiente Necessárias
+- `DB_HOST` - Host do PostgreSQL
+- `DB_PORT` - Porta do PostgreSQL (padrão: 5432)
+- `DB_USERNAME` - Usuário do banco
+- `DB_PASSWORD` - Senha do banco
+- `DB_DATABASE` - Nome do banco de dados
+- `JWT_SECRET` - Chave secreta para JWT
+- `JWT_EXPIRES_IN` - Tempo de expiração do token (ex: "1h")
+- `JWT_REFRESH_SECRET` - Chave secreta para refresh token
+- `JWT_REFRESH_EXPIRES_IN` - Tempo de expiração do refresh token (ex: "7d")
+- `NODE_ENV` - Ambiente (development/production)
+- `PORT` - Porta do servidor (padrão: 3000)
+
+### SSL em Produção
+A conexão com o banco usa SSL quando `NODE_ENV=production`:
+```typescript
+ssl: {
+  rejectUnauthorized: false
+}
+```
+
+## Testes
+
+```bash
+# Testes unitários
+npm run test
+
+# Testes e2e
+npm run test:e2e
+
+# Cobertura
+npm run test:cov
+```
 
