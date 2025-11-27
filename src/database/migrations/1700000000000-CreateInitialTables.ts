@@ -124,34 +124,35 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         ],
       }),
       true,
-    );
+      );
 
-    await queryRunner.createForeignKey(
-      'categories',
-      new TableForeignKey({
-        columnNames: ['user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'users',
-        onDelete: 'CASCADE',
-      }),
-    );
+      await queryRunner.createForeignKey(
+        'categories',
+        new TableForeignKey({
+          columnNames: ['user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'users',
+          onDelete: 'CASCADE',
+        }),
+      );
 
-    await queryRunner.createIndex(
-      'categories',
-      new TableIndex({
-        name: 'idx_categories_user_id',
-        columnNames: ['user_id'],
-      }),
-    );
+      await queryRunner.createIndex(
+        'categories',
+        new TableIndex({
+          name: 'idx_categories_user_id',
+          columnNames: ['user_id'],
+        }),
+      );
 
-    await queryRunner.createIndex(
-      'categories',
-      new TableIndex({
-        name: 'idx_categories_user_name',
-        columnNames: ['user_id', 'name'],
-        isUnique: true,
-      }),
-    );
+      await queryRunner.createIndex(
+        'categories',
+        new TableIndex({
+          name: 'idx_categories_user_name',
+          columnNames: ['user_id', 'name'],
+          isUnique: true,
+        }),
+      );
+    }
 
     // Create products table (apenas se não existir)
     if (!tablesExist[2]) {
@@ -647,15 +648,16 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         }),
       );
 
-    await queryRunner.createForeignKey(
-      'sale_items',
-      new TableForeignKey({
-        columnNames: ['product_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'products',
-        onDelete: 'RESTRICT',
-      }),
-    );
+      await queryRunner.createForeignKey(
+        'sale_items',
+        new TableForeignKey({
+          columnNames: ['product_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'products',
+          onDelete: 'RESTRICT',
+        }),
+      );
+    }
 
     // Create function to update updated_at (CREATE OR REPLACE é seguro)
     await queryRunner.query(`
