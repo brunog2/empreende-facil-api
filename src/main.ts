@@ -3,9 +3,15 @@ import { ValidationPipe } from "@nestjs/common";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
+import { ConfigService } from "@nestjs/config";
+import { runMigrations } from "./database/run-migrations";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // Executar migrations antes de iniciar o servidor
+  const configService = app.get(ConfigService);
+  await runMigrations(configService);
 
   // CORS - Aceitar todas as origens
   app.enableCors({
