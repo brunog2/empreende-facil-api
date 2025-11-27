@@ -103,40 +103,41 @@ export class SalesService {
       throw new NotFoundException('Venda não encontrada');
     }
 
-      // Se houver itens, validar estoque
-      if (data.items && data.items.length > 0) {
-        let calculatedTotal = 0;
-        
-        // Primeiro, criar um mapa dos itens existentes para facilitar a busca
-        const existingItemsMap = new Map<string, number>();
-        for (const oldItem of sale.saleItems) {
-          if (oldItem.productId) {
-            // Se já existe um item para este produto, somar as quantidades
-            const currentQty = existingItemsMap.get(oldItem.productId) || 0;
-            existingItemsMap.set(oldItem.productId, currentQty + oldItem.quantity);
-          }
+    // Se houver itens, validar estoque
+    if (data.items && data.items.length > 0) {
+      let calculatedTotal = 0;
+      for (const item of data.items) {
+        const product = await this.productsRepository.findById(item.productId, userId);
+        if (!product) {
+          throw new NotFoundException(`Produto ${item.productId} não encontrado`);
         }
+
+        // Verificar estoque disponível (considerando itens já vendidos)
+        const existingItem = sale.saleItems.find((si) => si.productId === item.productId);
         
-        for (const item of data.items) {
-          const product = await this.productsRepository.findById(item.productId, userId);
-          if (!product) {
-            throw new NotFoundException(`Produto ${item.productId} não encontrado`);
-          }
-
-          // Verificar estoque disponível (considerando itens já vendidos)
-          // O estoque atual já está reduzido pela venda original
-          // Então precisamos adicionar de volta a quantidade que estava na venda original
-          const existingQuantity = existingItemsMap.get(item.productId) || 0;
-          const availableStock = product.stockQuantity + existingQuantity;
-
-          if (availableStock < item.quantity) {
+        if (existingItem) {
+          // Se o item já existe na venda, calcular o estoque disponível
+          // (estoque atual + quantidade já vendida = estoque disponível antes da venda)
+          const availableStock = product.stockQuantity + existingItem.quantity;
+          
+          // Só bloquear se a nova quantidade for MAIOR que o disponível
+          // Se for menor ou igual, está OK (pode diminuir ou manter)
+          if (item.quantity > availableStock) {
             throw new BadRequestException(
-              `Estoque insuficiente para o produto ${product.name}. Disponível: ${availableStock}, Solicitado: ${item.quantity}`,
+              `Estoque insuficiente para aumentar a quantidade do produto ${product.name}. Disponível: ${availableStock}, Quantidade atual na venda: ${existingItem.quantity}, Solicitado: ${item.quantity}`,
             );
           }
-
-          calculatedTotal += item.quantity * item.unitPrice;
+        } else {
+          // Se é um item novo, verificar se há estoque disponível
+          if (product.stockQuantity < item.quantity) {
+            throw new BadRequestException(
+              `Estoque insuficiente para o produto ${product.name}. Disponível: ${product.stockQuantity}, Solicitado: ${item.quantity}`,
+            );
+          }
         }
+
+        calculatedTotal += item.quantity * item.unitPrice;
+      }
 
       if (data.totalAmount && Math.abs(calculatedTotal - data.totalAmount) > 0.01) {
         throw new BadRequestException(
@@ -153,6 +154,7 @@ export class SalesService {
       const stockChanges = new Map<string, number>();
 
       // Restaurar estoque dos itens antigos (adicionar de volta)
+      // Só restaurar se o produto ainda existir (productId não for null)
       for (const oldItem of sale.saleItems) {
         if (oldItem.productId) {
           const currentChange = stockChanges.get(oldItem.productId) || 0;
