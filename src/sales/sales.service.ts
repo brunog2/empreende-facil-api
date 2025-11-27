@@ -103,29 +103,40 @@ export class SalesService {
       throw new NotFoundException('Venda não encontrada');
     }
 
-    // Se houver itens, validar estoque
-    if (data.items && data.items.length > 0) {
-      let calculatedTotal = 0;
-      for (const item of data.items) {
-        const product = await this.productsRepository.findById(item.productId, userId);
-        if (!product) {
-          throw new NotFoundException(`Produto ${item.productId} não encontrado`);
+      // Se houver itens, validar estoque
+      if (data.items && data.items.length > 0) {
+        let calculatedTotal = 0;
+        
+        // Primeiro, criar um mapa dos itens existentes para facilitar a busca
+        const existingItemsMap = new Map<string, number>();
+        for (const oldItem of sale.saleItems) {
+          if (oldItem.productId) {
+            // Se já existe um item para este produto, somar as quantidades
+            const currentQty = existingItemsMap.get(oldItem.productId) || 0;
+            existingItemsMap.set(oldItem.productId, currentQty + oldItem.quantity);
+          }
         }
+        
+        for (const item of data.items) {
+          const product = await this.productsRepository.findById(item.productId, userId);
+          if (!product) {
+            throw new NotFoundException(`Produto ${item.productId} não encontrado`);
+          }
 
-        // Verificar estoque disponível (considerando itens já vendidos)
-        const existingItem = sale.saleItems.find((si) => si.productId === item.productId);
-        const currentStock = existingItem
-          ? product.stockQuantity + existingItem.quantity
-          : product.stockQuantity;
+          // Verificar estoque disponível (considerando itens já vendidos)
+          // O estoque atual já está reduzido pela venda original
+          // Então precisamos adicionar de volta a quantidade que estava na venda original
+          const existingQuantity = existingItemsMap.get(item.productId) || 0;
+          const availableStock = product.stockQuantity + existingQuantity;
 
-        if (currentStock < item.quantity) {
-          throw new BadRequestException(
-            `Estoque insuficiente para o produto ${product.name}. Disponível: ${currentStock}, Solicitado: ${item.quantity}`,
-          );
+          if (availableStock < item.quantity) {
+            throw new BadRequestException(
+              `Estoque insuficiente para o produto ${product.name}. Disponível: ${availableStock}, Solicitado: ${item.quantity}`,
+            );
+          }
+
+          calculatedTotal += item.quantity * item.unitPrice;
         }
-
-        calculatedTotal += item.quantity * item.unitPrice;
-      }
 
       if (data.totalAmount && Math.abs(calculatedTotal - data.totalAmount) > 0.01) {
         throw new BadRequestException(
@@ -143,8 +154,10 @@ export class SalesService {
 
       // Restaurar estoque dos itens antigos (adicionar de volta)
       for (const oldItem of sale.saleItems) {
-        const currentChange = stockChanges.get(oldItem.productId) || 0;
-        stockChanges.set(oldItem.productId, currentChange + oldItem.quantity);
+        if (oldItem.productId) {
+          const currentChange = stockChanges.get(oldItem.productId) || 0;
+          stockChanges.set(oldItem.productId, currentChange + oldItem.quantity);
+        }
       }
 
       // Reduzir estoque dos novos itens (subtrair)
