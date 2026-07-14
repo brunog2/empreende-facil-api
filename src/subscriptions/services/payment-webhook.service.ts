@@ -95,6 +95,7 @@ export class PaymentWebhookService {
         if (result.paymentStatus === PaymentStatus.Paid) {
           const metadata = (payment.metadata ?? {}) as PaymentMetadata;
           if (metadata.targetPlanId) {
+            const previousPlanId = subscription.planId;
             const targetPlan = await manager.getRepository(Plan).findOne({
               where: { id: metadata.targetPlanId },
             });
@@ -106,6 +107,19 @@ export class PaymentWebhookService {
             } else {
               subscription.lockedMonthlyPrice = null;
               subscription.lockedYearlyPrice = null;
+            }
+            if (targetPlan.durationMonths) {
+              if (
+                previousPlanId !== targetPlan.id ||
+                !subscription.planAccessEndsAt
+              ) {
+                subscription.planAccessEndsAt = this.addMonths(
+                  result.paidAt ?? new Date(),
+                  targetPlan.durationMonths,
+                );
+              }
+            } else {
+              subscription.planAccessEndsAt = null;
             }
           }
           if (metadata.billingCycle) subscription.billingCycle = metadata.billingCycle;
@@ -152,6 +166,12 @@ export class PaymentWebhookService {
     const result = new Date(date);
     if (cycle === BillingCycle.Yearly) result.setFullYear(result.getFullYear() + 1);
     else result.setMonth(result.getMonth() + 1);
+    return result;
+  }
+
+  private addMonths(date: Date, months: number): Date {
+    const result = new Date(date);
+    result.setMonth(result.getMonth() + months);
     return result;
   }
 }

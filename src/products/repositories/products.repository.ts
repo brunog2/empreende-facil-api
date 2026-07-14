@@ -4,6 +4,7 @@ import { Repository, Like, In, Between, LessThanOrEqual } from 'typeorm';
 import { Product } from '../entities/product.entity';
 import { FilterProductsDto } from '../dto/filter-products.dto';
 import { PaginatedResponse } from '../../common/dto/pagination.dto';
+import { LOW_STOCK_THRESHOLD } from '../products.constants';
 
 @Injectable()
 export class ProductsRepository {
@@ -58,9 +59,15 @@ export class ProductsRepository {
     // Filtro de estoque baixo
     if (lowStock !== undefined) {
       if (lowStock) {
-        queryBuilder.andWhere('product.stockQuantity <= 0');
+        queryBuilder.andWhere(
+          'product.stockQuantity <= :lowStockThreshold',
+          { lowStockThreshold: LOW_STOCK_THRESHOLD },
+        );
       } else {
-        queryBuilder.andWhere('product.stockQuantity > 0');
+        queryBuilder.andWhere(
+          'product.stockQuantity > :lowStockThreshold',
+          { lowStockThreshold: LOW_STOCK_THRESHOLD },
+        );
       }
     }
 
@@ -191,9 +198,13 @@ export class ProductsRepository {
 
   async findLowStock(userId: string): Promise<Product[]> {
     return this.repository.find({
-      where: { userId },
-    }).then(products => products.filter(p => p.stockQuantity <= 0));
+      where: {
+        userId,
+        stockQuantity: LessThanOrEqual(LOW_STOCK_THRESHOLD),
+      },
+      order: { stockQuantity: 'ASC', name: 'ASC' },
+      withDeleted: false,
+    });
   }
 }
-
 

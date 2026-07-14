@@ -44,7 +44,6 @@ export const FEATURE_LABELS: Record<string, string> = {
   advancedReports: 'Relatórios avançados',
   dataExport: 'Exportação Excel/PDF',
   automaticBackup: 'Backup automático',
-  userPermissions: 'Permissões por usuário',
   prioritySupport: 'Suporte prioritário',
   premiumSupport: 'Suporte premium',
 };

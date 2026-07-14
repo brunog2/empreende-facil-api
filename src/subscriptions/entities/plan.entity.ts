@@ -35,6 +35,9 @@ export class Plan {
   @Column({ name: 'trial_days', type: 'integer', nullable: true })
   trialDays: number | null;
 
+  @Column({ name: 'duration_months', type: 'integer', nullable: true })
+  durationMonths: number | null;
+
   @Column({ type: 'jsonb' })
   features: PlanFeatures;
 

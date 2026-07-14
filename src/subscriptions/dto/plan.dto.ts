@@ -44,6 +44,12 @@ export class CreatePlanDto {
   @Max(365)
   trialDays?: number | null;
 
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  durationMonths?: number | null;
+
   @IsObject()
   features: PlanFeatures;
 
@@ -85,6 +91,12 @@ export class UpdatePlanDto {
   @Min(0)
   @Max(365)
   trialDays?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  durationMonths?: number | null;
 
   @IsOptional()
   @IsObject()

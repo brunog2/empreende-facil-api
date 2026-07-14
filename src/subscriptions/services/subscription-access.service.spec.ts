@@ -31,6 +31,7 @@ function makeSubscription(
     gracePeriodEndsAt: null,
     canceledAt: null,
     cancelAtPeriodEnd: false,
+    planAccessEndsAt: null,
     lockedMonthlyPrice: null,
     lockedYearlyPrice: null,
     provider: null,
@@ -69,6 +70,18 @@ describe('SubscriptionAccessService', () => {
   it('expira um teste encerrado', async () => {
     const subscription = makeSubscription(SubscriptionStatus.Trialing, {
       trialEndsAt: new Date(Date.now() - 1_000),
+    });
+    await expect(service.assertValidStatus(subscription)).rejects.toMatchObject({
+      response: { code: 'SUBSCRIPTION_EXPIRED' },
+    });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: SubscriptionStatus.Expired }),
+    );
+  });
+
+  it('expira uma condição promocional encerrada', async () => {
+    const subscription = makeSubscription(SubscriptionStatus.Active, {
+      planAccessEndsAt: new Date(Date.now() - 1_000),
     });
     await expect(service.assertValidStatus(subscription)).rejects.toMatchObject({
       response: { code: 'SUBSCRIPTION_EXPIRED' },

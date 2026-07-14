@@ -82,6 +82,7 @@ export class SubscriptionsService {
         currentPeriodStart: null,
         currentPeriodEnd: null,
         gracePeriodEndsAt: null,
+        planAccessEndsAt: null,
         canceledAt: null,
         cancelAtPeriodEnd: false,
         lockedMonthlyPrice: null,
@@ -180,6 +181,11 @@ export class SubscriptionsService {
     if (plan.code === 'trial') {
       throw new BadRequestException('O plano de teste não pode ser contratado.');
     }
+    if (plan.durationMonths && data.billingCycle === BillingCycle.Yearly) {
+      throw new BadRequestException(
+        'Este plano promocional está disponível apenas no ciclo mensal.',
+      );
+    }
 
     const providerName = this.configService.get<string>(
       'PAYMENT_PROVIDER',
@@ -269,6 +275,7 @@ export class SubscriptionsService {
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,
       gracePeriodEndsAt: subscription.gracePeriodEndsAt,
+      planAccessEndsAt: subscription.planAccessEndsAt,
       canceledAt: subscription.canceledAt,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       lockedMonthlyPrice: subscription.lockedMonthlyPrice,

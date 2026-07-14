@@ -280,6 +280,9 @@ export class AdminSubscriptionsService {
       plan.code === 'founder' ? plan.monthlyPrice : null;
     subscription.lockedYearlyPrice =
       plan.code === 'founder' ? plan.yearlyPrice : null;
+    subscription.planAccessEndsAt = plan.durationMonths
+      ? this.addMonths(new Date(), plan.durationMonths)
+      : null;
     if (data.billingCycle) subscription.billingCycle = data.billingCycle;
     const saved = await this.subscriptionsRepository.save(subscription);
     this.logAction('change-plan', adminId, id, {
@@ -377,6 +380,12 @@ export class AdminSubscriptionsService {
     return result;
   }
 
+  private addMonths(date: Date, months: number): Date {
+    const result = new Date(date);
+    result.setMonth(result.getMonth() + months);
+    return result;
+  }
+
   private logAction(
     action: string,
     adminId: string,
@@ -399,6 +408,7 @@ export class AdminSubscriptionsService {
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,
       gracePeriodEndsAt: subscription.gracePeriodEndsAt,
+      planAccessEndsAt: subscription.planAccessEndsAt,
       canceledAt: subscription.canceledAt,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       lockedMonthlyPrice: subscription.lockedMonthlyPrice,

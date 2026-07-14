@@ -29,8 +29,8 @@ describe('PlanLimitService', () => {
   } as unknown as Repository<Sale>;
   const access = {
     getCurrentOrThrow: jest.fn().mockResolvedValue({
-      plan: { limits: { products: 30, customers: 30, salesPerMonth: 50, users: 1 } },
-    } as Subscription),
+      plan: { limits: { products: 30, customers: 30, salesPerMonth: 50 } },
+    } as unknown as Subscription),
   } as unknown as SubscriptionAccessService;
   const service = new PlanLimitService(products, customers, sales, access);
 
@@ -42,7 +42,7 @@ describe('PlanLimitService', () => {
     await expect(
       service.assertCanCreate(
         'user-id',
-        limit as Exclude<PlanLimit, PlanLimit.Users>,
+        limit,
       ),
     ).rejects.toMatchObject({
       response: { code: 'PLAN_LIMIT_REACHED' },

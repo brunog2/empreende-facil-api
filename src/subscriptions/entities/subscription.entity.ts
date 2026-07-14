@@ -60,6 +60,9 @@ export class Subscription {
   @Column({ name: 'grace_period_ends_at', type: 'timestamptz', nullable: true })
   gracePeriodEndsAt: Date | null;
 
+  @Column({ name: 'plan_access_ends_at', type: 'timestamptz', nullable: true })
+  planAccessEndsAt: Date | null;
+
   @Column({ name: 'canceled_at', type: 'timestamptz', nullable: true })
   canceledAt: Date | null;
 

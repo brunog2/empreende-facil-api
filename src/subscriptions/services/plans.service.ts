@@ -77,6 +77,7 @@ export class PlansService {
       name: data.name.trim(),
       description: data.description.trim(),
       trialDays: data.trialDays ?? null,
+      durationMonths: data.durationMonths ?? null,
       features: this.validateFeatures(data.features),
       limits: this.validateLimits(data.limits),
       isActive: data.isActive ?? true,
@@ -95,6 +96,9 @@ export class PlansService {
     if (data.monthlyPrice !== undefined) plan.monthlyPrice = data.monthlyPrice;
     if (data.yearlyPrice !== undefined) plan.yearlyPrice = data.yearlyPrice;
     if (data.trialDays !== undefined) plan.trialDays = data.trialDays;
+    if (data.durationMonths !== undefined) {
+      plan.durationMonths = data.durationMonths;
+    }
     if (data.features !== undefined) plan.features = this.validateFeatures(data.features);
     if (data.limits !== undefined) plan.limits = this.validateLimits(data.limits);
     if (data.isActive !== undefined) plan.isActive = data.isActive;

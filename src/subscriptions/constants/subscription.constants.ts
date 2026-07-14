@@ -9,7 +9,6 @@ export enum PlanFeature {
   AdvancedReports = 'advancedReports',
   DataExport = 'dataExport',
   AutomaticBackup = 'automaticBackup',
-  UserPermissions = 'userPermissions',
   PrioritySupport = 'prioritySupport',
   PremiumSupport = 'premiumSupport',
 }
@@ -18,7 +17,6 @@ export enum PlanLimit {
   Products = 'products',
   Customers = 'customers',
   SalesPerMonth = 'salesPerMonth',
-  Users = 'users',
 }
 
 export type PlanFeatures = Record<PlanFeature, boolean>;

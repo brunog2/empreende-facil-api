@@ -54,6 +54,14 @@ export class SubscriptionAccessService {
   }
 
   async assertValidStatus(subscription: Subscription, now = new Date()): Promise<void> {
+    if (
+      subscription.planAccessEndsAt &&
+      subscription.planAccessEndsAt <= now
+    ) {
+      await this.updateStatus(subscription, SubscriptionStatus.Expired);
+      this.throwBlocked(SubscriptionErrorCode.SubscriptionExpired);
+    }
+
     if (subscription.status === SubscriptionStatus.Trialing) {
       if (!subscription.trialEndsAt || subscription.trialEndsAt <= now) {
         await this.updateStatus(subscription, SubscriptionStatus.Expired);
