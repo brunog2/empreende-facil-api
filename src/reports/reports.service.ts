@@ -13,6 +13,7 @@ interface Period {
 interface SummaryRow {
   revenue: string;
   expenses: string;
+  costOfGoodsSold: string;
   profit: string;
   salesCount: string;
   averageTicket: string;
@@ -26,6 +27,7 @@ interface MonthlyRow {
   month: string;
   revenue: string;
   expenses: string;
+  costOfGoodsSold: string;
   profit: string;
 }
 
@@ -87,12 +89,23 @@ export class ReportsService {
             SELECT SUM(amount) FROM expenses
             WHERE user_id = $1 AND expense_date >= $2 AND expense_date < $3
           ), 0)::decimal(14,2)::text AS expenses,
+          COALESCE((
+            SELECT SUM(COALESCE(si.product_cost_price, 0) * si.quantity)
+            FROM sale_items si
+            INNER JOIN sales s ON s.id = si.sale_id
+            WHERE s.user_id = $1 AND s.sale_date >= $2 AND s.sale_date < $3
+          ), 0)::decimal(14,2)::text AS "costOfGoodsSold",
           (
             COALESCE((SELECT SUM(total_amount) FROM sales
               WHERE user_id = $1 AND sale_date >= $2 AND sale_date < $3), 0)
             -
             COALESCE((SELECT SUM(amount) FROM expenses
               WHERE user_id = $1 AND expense_date >= $2 AND expense_date < $3), 0)
+            -
+            COALESCE((SELECT SUM(COALESCE(si.product_cost_price, 0) * si.quantity)
+              FROM sale_items si
+              INNER JOIN sales s ON s.id = si.sale_id
+              WHERE s.user_id = $1 AND s.sale_date >= $2 AND s.sale_date < $3), 0)
           )::decimal(14,2)::text AS profit,
           (SELECT COUNT(*) FROM sales
             WHERE user_id = $1 AND sale_date >= $2 AND sale_date < $3)::text AS "salesCount",
@@ -120,6 +133,9 @@ export class ReportsService {
       summary: {
         revenue: row?.revenue ?? '0.00',
         expenses: row?.expenses ?? '0.00',
+        costOfGoodsSold: row?.costOfGoodsSold ?? '0.00',
+        operatingResult: row?.profit ?? '0.00',
+        // Compatibilidade temporária com clientes que ainda consomem `profit`.
         profit: row?.profit ?? '0.00',
         salesCount,
         averageTicket: row?.averageTicket ?? '0.00',
@@ -133,10 +149,15 @@ export class ReportsService {
 
   async getAdvanced(userId: string, query: ReportPeriodDto) {
     const period = this.normalizePeriod(query);
-    const [monthly, topProducts, paymentMethods, expenseCategories, customerGrowth] =
-      await Promise.all([
-        this.dataSource.query(
-          `
+    const [
+      monthly,
+      topProducts,
+      paymentMethods,
+      expenseCategories,
+      customerGrowth,
+    ] = await Promise.all([
+      this.dataSource.query(
+        `
             SELECT TO_CHAR(month, 'YYYY-MM') AS month,
               COALESCE((SELECT SUM(total_amount) FROM sales
                 WHERE user_id = $1 AND sale_date >= month
@@ -144,6 +165,11 @@ export class ReportsService {
               COALESCE((SELECT SUM(amount) FROM expenses
                 WHERE user_id = $1 AND expense_date >= month
                   AND expense_date < month + INTERVAL '1 month'), 0)::decimal(14,2)::text AS expenses,
+              COALESCE((SELECT SUM(COALESCE(si.product_cost_price, 0) * si.quantity)
+                FROM sale_items si
+                INNER JOIN sales s ON s.id = si.sale_id
+                WHERE s.user_id = $1 AND s.sale_date >= month
+                  AND s.sale_date < month + INTERVAL '1 month'), 0)::decimal(14,2)::text AS "costOfGoodsSold",
               (
                 COALESCE((SELECT SUM(total_amount) FROM sales
                   WHERE user_id = $1 AND sale_date >= month
@@ -152,6 +178,12 @@ export class ReportsService {
                 COALESCE((SELECT SUM(amount) FROM expenses
                   WHERE user_id = $1 AND expense_date >= month
                     AND expense_date < month + INTERVAL '1 month'), 0)
+                -
+                COALESCE((SELECT SUM(COALESCE(si.product_cost_price, 0) * si.quantity)
+                  FROM sale_items si
+                  INNER JOIN sales s ON s.id = si.sale_id
+                  WHERE s.user_id = $1 AND s.sale_date >= month
+                    AND s.sale_date < month + INTERVAL '1 month'), 0)
               )::decimal(14,2)::text AS profit
             FROM GENERATE_SERIES(
               DATE_TRUNC('month', $2::timestamptz),
@@ -160,10 +192,10 @@ export class ReportsService {
             ) month
             ORDER BY month
           `,
-          [userId, period.start, period.endExclusive],
-        ) as Promise<MonthlyRow[]>,
-        this.dataSource.query(
-          `
+        [userId, period.start, period.endExclusive],
+      ) as Promise<MonthlyRow[]>,
+      this.dataSource.query(
+        `
             SELECT COALESCE(si.product_name, p.name, 'Produto removido') AS name,
               SUM(si.subtotal)::decimal(14,2)::text AS total,
               SUM(si.quantity)::decimal(14,3)::text AS count
@@ -175,10 +207,10 @@ export class ReportsService {
             ORDER BY SUM(si.subtotal) DESC
             LIMIT 10
           `,
-          [userId, period.start, period.endExclusive],
-        ) as Promise<NamedTotalRow[]>,
-        this.dataSource.query(
-          `
+        [userId, period.start, period.endExclusive],
+      ) as Promise<NamedTotalRow[]>,
+      this.dataSource.query(
+        `
             SELECT COALESCE(payment_method, 'Não informado') AS name,
               SUM(total_amount)::decimal(14,2)::text AS total,
               COUNT(*)::text AS count
@@ -187,20 +219,20 @@ export class ReportsService {
             GROUP BY COALESCE(payment_method, 'Não informado')
             ORDER BY SUM(total_amount) DESC
           `,
-          [userId, period.start, period.endExclusive],
-        ) as Promise<NamedTotalRow[]>,
-        this.dataSource.query(
-          `
+        [userId, period.start, period.endExclusive],
+      ) as Promise<NamedTotalRow[]>,
+      this.dataSource.query(
+        `
             SELECT category AS name, SUM(amount)::decimal(14,2)::text AS total
             FROM expenses
             WHERE user_id = $1 AND expense_date >= $2 AND expense_date < $3
             GROUP BY category
             ORDER BY SUM(amount) DESC
           `,
-          [userId, period.start, period.endExclusive],
-        ) as Promise<NamedTotalRow[]>,
-        this.dataSource.query(
-          `
+        [userId, period.start, period.endExclusive],
+      ) as Promise<NamedTotalRow[]>,
+      this.dataSource.query(
+        `
             SELECT TO_CHAR(month, 'YYYY-MM') AS month,
               COUNT(customers.id)::text AS "newCustomers"
             FROM GENERATE_SERIES(
@@ -214,9 +246,9 @@ export class ReportsService {
             GROUP BY month
             ORDER BY month
           `,
-          [userId, period.start, period.endExclusive],
-        ) as Promise<CustomerGrowthRow[]>,
-      ]);
+        [userId, period.start, period.endExclusive],
+      ) as Promise<CustomerGrowthRow[]>,
+    ]);
 
     return {
       period: { startDate: period.startDate, endDate: period.endDate },
@@ -224,6 +256,9 @@ export class ReportsService {
         month: item.month,
         revenue: item.revenue,
         expenses: item.expenses,
+        costOfGoodsSold: item.costOfGoodsSold,
+        operatingResult: item.profit,
+        // Compatibilidade temporária com clientes que ainda consomem `profit`.
         profit: item.profit,
       })),
       topProducts: topProducts.map((item) => ({
@@ -280,7 +315,14 @@ export class ReportsService {
         [userId, period.start, period.endExclusive],
       ) as Promise<ReportExportData['expenses']>,
     ]);
-    return { period: report.period, summary: report.summary, sales, products, customers, expenses };
+    return {
+      period: report.period,
+      summary: report.summary,
+      sales,
+      products,
+      customers,
+      expenses,
+    };
   }
 
   private normalizePeriod(query: ReportPeriodDto): Period {

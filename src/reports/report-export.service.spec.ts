@@ -6,7 +6,9 @@ const report: ReportExportData = {
   summary: {
     revenue: '100.00',
     expenses: '20.00',
-    profit: '80.00',
+    costOfGoodsSold: '30.00',
+    operatingResult: '50.00',
+    profit: '50.00',
     salesCount: 1,
     averageTicket: '100.00',
     products: 1,

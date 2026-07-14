@@ -54,7 +54,9 @@ export class SalesRepository {
 
     // Filtro de categorias (através dos produtos)
     if (categories && categories.length > 0) {
-      queryBuilder.andWhere('product.category IN (:...categories)', { categories });
+      queryBuilder.andWhere('product.category IN (:...categories)', {
+        categories,
+      });
     }
 
     // Filtro de produtos
@@ -112,6 +114,7 @@ export class SalesRepository {
         unitPrice: number;
         productName?: string | null;
         productPrice?: number | null;
+        productCostPrice: number;
       }>;
     },
   ): Promise<Sale> {
@@ -135,6 +138,7 @@ export class SalesRepository {
         subtotal: item.quantity * item.unitPrice,
         productName: item.productName || null,
         productPrice: item.productPrice || null,
+        productCostPrice: item.productCostPrice,
       }),
     );
 
@@ -158,6 +162,7 @@ export class SalesRepository {
         unitPrice: number;
         productName?: string | null;
         productPrice?: number | null;
+        productCostPrice?: number;
       }>;
     },
   ): Promise<Sale> {
@@ -168,7 +173,8 @@ export class SalesRepository {
 
     if (data.customerId !== undefined) sale.customerId = data.customerId;
     if (data.totalAmount !== undefined) sale.totalAmount = data.totalAmount;
-    if (data.paymentMethod !== undefined) sale.paymentMethod = data.paymentMethod;
+    if (data.paymentMethod !== undefined)
+      sale.paymentMethod = data.paymentMethod;
     if (data.notes !== undefined) sale.notes = data.notes;
     if (data.saleDate !== undefined) sale.saleDate = data.saleDate;
 
@@ -186,6 +192,7 @@ export class SalesRepository {
           subtotal: item.quantity * item.unitPrice,
           productName: item.productName || null,
           productPrice: item.productPrice || null,
+          productCostPrice: item.productCostPrice ?? 0,
         }),
       );
 
@@ -209,7 +216,9 @@ export class SalesRepository {
     });
 
     if (sales.length !== ids.length) {
-      throw new Error('Algumas vendas não foram encontradas ou não pertencem ao usuário');
+      throw new Error(
+        'Algumas vendas não foram encontradas ou não pertencem ao usuário',
+      );
     }
 
     await this.saleRepository.delete({
@@ -218,7 +227,11 @@ export class SalesRepository {
     });
   }
 
-  async getMonthlyTotal(userId: string, year: number, month: number): Promise<number> {
+  async getMonthlyTotal(
+    userId: string,
+    year: number,
+    month: number,
+  ): Promise<number> {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
@@ -232,14 +245,22 @@ export class SalesRepository {
     return sales.reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
   }
 
-  async getTopProducts(userId: string, limit: number = 5): Promise<Array<{
-    productId: string;
-    productName: string;
-    totalQuantity: number;
-    totalRevenue: number;
-  }>> {
+  async getTopProducts(
+    userId: string,
+    limit: number = 5,
+  ): Promise<
+    Array<{
+      productId: string;
+      productName: string;
+      totalQuantity: number;
+      totalRevenue: number;
+    }>
+  > {
     const sales = await this.findAll(userId);
-    const productMap = new Map<string, { name: string; quantity: number; revenue: number }>();
+    const productMap = new Map<
+      string,
+      { name: string; quantity: number; revenue: number }
+    >();
 
     sales.forEach((sale) => {
       sale.saleItems.forEach((item) => {
@@ -267,5 +288,3 @@ export class SalesRepository {
       .slice(0, limit);
   }
 }
-
-

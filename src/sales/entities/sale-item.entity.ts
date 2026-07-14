@@ -45,6 +45,19 @@ export class SaleItem {
   productPrice: number | null;
 
   @Column({
+    name: 'product_cost_price',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => parseFloat(value || '0'),
+    },
+  })
+  productCostPrice: number;
+
+  @Column({
     type: 'decimal',
     precision: 10,
     scale: 3,
@@ -81,5 +94,3 @@ export class SaleItem {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }
-
-

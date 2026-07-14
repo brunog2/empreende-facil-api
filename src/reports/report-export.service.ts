@@ -16,15 +16,25 @@ export class ReportExportService {
       { header: 'Valor', key: 'value', width: 22 },
     ];
     summary.addRows([
-      { label: 'Período', value: `${data.period.startDate} a ${data.period.endDate}` },
-      { label: 'Receita', value: Number(data.summary.revenue) },
+      {
+        label: 'Período',
+        value: `${data.period.startDate} a ${data.period.endDate}`,
+      },
+      { label: 'Faturamento', value: Number(data.summary.revenue) },
       { label: 'Despesas', value: Number(data.summary.expenses) },
-      { label: 'Lucro', value: Number(data.summary.profit) },
+      { label: 'CMV', value: Number(data.summary.costOfGoodsSold) },
+      {
+        label: 'Resultado operacional estimado',
+        value: Number(data.summary.operatingResult),
+      },
       { label: 'Quantidade de vendas', value: data.summary.salesCount },
       { label: 'Ticket médio', value: Number(data.summary.averageTicket) },
       { label: 'Produtos', value: data.summary.products },
       { label: 'Clientes', value: data.summary.customers },
-      { label: 'Produtos com estoque baixo', value: data.summary.lowStockProducts },
+      {
+        label: 'Produtos com estoque baixo',
+        value: data.summary.lowStockProducts,
+      },
       { label: 'Valor do estoque', value: Number(data.summary.stockValue) },
     ]);
     this.styleWorksheet(summary);
@@ -36,7 +46,9 @@ export class ReportExportService {
       { header: 'Pagamento', key: 'paymentMethod', width: 20 },
       { header: 'Total', key: 'total', width: 16 },
     ];
-    sales.addRows(data.sales.map((item) => ({ ...item, total: Number(item.total) })));
+    sales.addRows(
+      data.sales.map((item) => ({ ...item, total: Number(item.total) })),
+    );
     sales.getColumn('date').numFmt = 'dd/mm/yyyy hh:mm';
     sales.getColumn('total').numFmt = 'R$ #,##0.00';
     this.styleWorksheet(sales);
@@ -79,7 +91,9 @@ export class ReportExportService {
       { header: 'Categoria', key: 'category', width: 24 },
       { header: 'Valor', key: 'amount', width: 16 },
     ];
-    expenses.addRows(data.expenses.map((item) => ({ ...item, amount: Number(item.amount) })));
+    expenses.addRows(
+      data.expenses.map((item) => ({ ...item, amount: Number(item.amount) })),
+    );
     expenses.getColumn('date').numFmt = 'dd/mm/yyyy';
     expenses.getColumn('amount').numFmt = 'R$ #,##0.00';
     this.styleWorksheet(expenses);
@@ -111,9 +125,10 @@ export class ReportExportService {
           currency: 'BRL',
         }).format(Number(value));
       const indicators: Array<[string, string]> = [
-        ['Receita', money(data.summary.revenue)],
+        ['Faturamento', money(data.summary.revenue)],
         ['Despesas', money(data.summary.expenses)],
-        ['Lucro', money(data.summary.profit)],
+        ['CMV', money(data.summary.costOfGoodsSold)],
+        ['Resultado operacional estimado', money(data.summary.operatingResult)],
         ['Ticket médio', money(data.summary.averageTicket)],
         ['Vendas', String(data.summary.salesCount)],
         ['Clientes', String(data.summary.customers)],
@@ -123,7 +138,10 @@ export class ReportExportService {
       document.fontSize(14).fillColor('#111827').text('Resumo');
       document.moveDown(0.4);
       for (const [label, value] of indicators) {
-        document.fontSize(10).fillColor('#374151').text(`${label}: `, { continued: true });
+        document
+          .fontSize(10)
+          .fillColor('#374151')
+          .text(`${label}: `, { continued: true });
         document.fillColor('#111827').text(value);
       }
 
