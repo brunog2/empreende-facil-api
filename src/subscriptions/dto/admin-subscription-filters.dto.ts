@@ -1,19 +1,21 @@
-import { Transform } from 'class-transformer';
+import { Transform } from "class-transformer";
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
-} from 'class-validator';
+} from "class-validator";
 import {
   BillingCycle,
   PaymentStatus,
+  SUPPORTED_PLAN_CODES,
   SubscriptionStatus,
-} from '../constants/subscription.constants';
+} from "../constants/subscription.constants";
 
 export class AdminSubscriptionFiltersDto {
   @IsOptional()
@@ -36,6 +38,7 @@ export class AdminSubscriptionFiltersDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(SUPPORTED_PLAN_CODES)
   @MaxLength(50)
   plan?: string;
 

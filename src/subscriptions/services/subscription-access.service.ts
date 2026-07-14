@@ -1,22 +1,31 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  BillingCycle,
+  FREE_PLAN_CODE,
   PlanFeature,
   SubscriptionStatus,
-} from '../constants/subscription.constants';
+} from "../constants/subscription.constants";
 import {
   FEATURE_LABELS,
   SUBSCRIPTION_MESSAGES,
   SubscriptionErrorCode,
-} from '../constants/subscription-errors.constants';
-import { Subscription } from '../entities/subscription.entity';
+} from "../constants/subscription-errors.constants";
+import { Subscription } from "../entities/subscription.entity";
+import { Plan } from "../entities/plan.entity";
 
 @Injectable()
 export class SubscriptionAccessService {
   constructor(
     @InjectRepository(Subscription)
     private readonly subscriptionsRepository: Repository<Subscription>,
+    @InjectRepository(Plan)
+    private readonly plansRepository: Repository<Plan>,
   ) {}
 
   async getCurrent(userId: string): Promise<Subscription | null> {
@@ -38,7 +47,10 @@ export class SubscriptionAccessService {
     return subscription;
   }
 
-  async assertAccess(userId: string, feature?: PlanFeature): Promise<Subscription> {
+  async assertAccess(
+    userId: string,
+    feature?: PlanFeature,
+  ): Promise<Subscription> {
     const subscription = await this.getCurrentOrThrow(userId);
     await this.assertValidStatus(subscription);
 
@@ -53,55 +65,99 @@ export class SubscriptionAccessService {
     return subscription;
   }
 
-  async assertValidStatus(subscription: Subscription, now = new Date()): Promise<void> {
-    if (
-      subscription.planAccessEndsAt &&
-      subscription.planAccessEndsAt <= now
-    ) {
-      await this.updateStatus(subscription, SubscriptionStatus.Expired);
-      this.throwBlocked(SubscriptionErrorCode.SubscriptionExpired);
+  async assertValidStatus(
+    subscription: Subscription,
+    now = new Date(),
+  ): Promise<void> {
+    if (subscription.plan.code === FREE_PLAN_CODE) {
+      if (subscription.status === SubscriptionStatus.Suspended) {
+        this.throwBlocked(SubscriptionErrorCode.SubscriptionSuspended);
+      }
+      if (
+        subscription.status !== SubscriptionStatus.Active ||
+        subscription.trialEndsAt ||
+        subscription.currentPeriodEnd ||
+        subscription.planAccessEndsAt ||
+        subscription.cancelAtPeriodEnd
+      ) {
+        await this.activateFreePlan(subscription);
+      }
+      return;
+    }
+
+    if (subscription.planAccessEndsAt && subscription.planAccessEndsAt <= now) {
+      await this.activateFreePlan(subscription);
+      return;
     }
 
     if (subscription.status === SubscriptionStatus.Trialing) {
       if (!subscription.trialEndsAt || subscription.trialEndsAt <= now) {
-        await this.updateStatus(subscription, SubscriptionStatus.Expired);
-        this.throwBlocked(SubscriptionErrorCode.SubscriptionExpired);
+        await this.activateFreePlan(subscription);
       }
       return;
     }
 
     if (subscription.status === SubscriptionStatus.Active) {
-      if (subscription.currentPeriodEnd && subscription.currentPeriodEnd <= now) {
-        const status = subscription.cancelAtPeriodEnd
-          ? SubscriptionStatus.Canceled
-          : SubscriptionStatus.Expired;
-        await this.updateStatus(subscription, status);
-        this.throwBlocked(SubscriptionErrorCode.SubscriptionExpired);
+      if (
+        subscription.currentPeriodEnd &&
+        subscription.currentPeriodEnd <= now
+      ) {
+        await this.activateFreePlan(subscription);
       }
       return;
     }
 
     if (subscription.status === SubscriptionStatus.PastDue) {
-      if (subscription.gracePeriodEndsAt && subscription.gracePeriodEndsAt > now) {
+      if (
+        subscription.gracePeriodEndsAt &&
+        subscription.gracePeriodEndsAt > now
+      ) {
         return;
       }
-      await this.updateStatus(subscription, SubscriptionStatus.Suspended);
-      this.throwBlocked(SubscriptionErrorCode.SubscriptionSuspended);
+      await this.activateFreePlan(subscription);
+      return;
     }
 
     if (subscription.status === SubscriptionStatus.Suspended) {
       this.throwBlocked(SubscriptionErrorCode.SubscriptionSuspended);
     }
 
+    if (
+      subscription.status === SubscriptionStatus.Canceled ||
+      subscription.status === SubscriptionStatus.Expired
+    ) {
+      await this.activateFreePlan(subscription);
+      return;
+    }
+
     this.throwBlocked(SubscriptionErrorCode.SubscriptionExpired);
   }
 
-  private async updateStatus(
-    subscription: Subscription,
-    status: SubscriptionStatus,
-  ): Promise<void> {
-    if (subscription.status === status) return;
-    subscription.status = status;
+  private async activateFreePlan(subscription: Subscription): Promise<void> {
+    const freePlan =
+      subscription.plan.code === FREE_PLAN_CODE
+        ? subscription.plan
+        : await this.plansRepository.findOne({
+            where: { code: FREE_PLAN_CODE, isActive: true },
+          });
+    if (!freePlan) {
+      this.throwBlocked(SubscriptionErrorCode.SubscriptionExpired);
+    }
+
+    subscription.planId = freePlan.id;
+    subscription.plan = freePlan;
+    subscription.status = SubscriptionStatus.Active;
+    subscription.billingCycle = BillingCycle.Monthly;
+    subscription.trialStartsAt = null;
+    subscription.trialEndsAt = null;
+    subscription.currentPeriodStart = new Date();
+    subscription.currentPeriodEnd = null;
+    subscription.gracePeriodEndsAt = null;
+    subscription.planAccessEndsAt = null;
+    subscription.cancelAtPeriodEnd = false;
+    subscription.lockedMonthlyPrice = null;
+    subscription.lockedYearlyPrice = null;
+    subscription.providerSubscriptionId = null;
     await this.subscriptionsRepository.save(subscription);
   }
 

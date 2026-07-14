@@ -1,54 +1,62 @@
 export enum PlanFeature {
-  Dashboard = 'dashboard',
-  Sales = 'sales',
-  Products = 'products',
-  Categories = 'categories',
-  Customers = 'customers',
-  Expenses = 'expenses',
-  Reports = 'reports',
-  AdvancedReports = 'advancedReports',
-  DataExport = 'dataExport',
-  AutomaticBackup = 'automaticBackup',
-  PrioritySupport = 'prioritySupport',
-  PremiumSupport = 'premiumSupport',
+  Dashboard = "dashboard",
+  Sales = "sales",
+  Products = "products",
+  Categories = "categories",
+  Customers = "customers",
+  Expenses = "expenses",
+  Reports = "reports",
+  AdvancedReports = "advancedReports",
+  DataExport = "dataExport",
+  AutomaticBackup = "automaticBackup",
+  PrioritySupport = "prioritySupport",
+  PremiumSupport = "premiumSupport",
 }
 
 export enum PlanLimit {
-  Products = 'products',
-  Customers = 'customers',
-  SalesPerMonth = 'salesPerMonth',
+  Products = "products",
+  Customers = "customers",
+  SalesPerMonth = "salesPerMonth",
 }
 
 export type PlanFeatures = Record<PlanFeature, boolean>;
 export type PlanLimits = Record<PlanLimit, number | null>;
 
+export const FREE_PLAN_CODE = "trial" as const;
+export const SUPPORTED_PLAN_CODES = ["trial", "starter", "pro"] as const;
+export type SupportedPlanCode = (typeof SUPPORTED_PLAN_CODES)[number];
+
+export function isSupportedPlanCode(code: string): code is SupportedPlanCode {
+  return SUPPORTED_PLAN_CODES.includes(code as SupportedPlanCode);
+}
+
 export enum SubscriptionStatus {
-  Trialing = 'trialing',
-  Active = 'active',
-  PastDue = 'past_due',
-  Suspended = 'suspended',
-  Canceled = 'canceled',
-  Expired = 'expired',
+  Trialing = "trialing",
+  Active = "active",
+  PastDue = "past_due",
+  Suspended = "suspended",
+  Canceled = "canceled",
+  Expired = "expired",
 }
 
 export enum BillingCycle {
-  Monthly = 'monthly',
-  Yearly = 'yearly',
+  Monthly = "monthly",
+  Yearly = "yearly",
 }
 
 export enum PaymentStatus {
-  Pending = 'pending',
-  Processing = 'processing',
-  Paid = 'paid',
-  Failed = 'failed',
-  Refunded = 'refunded',
-  Canceled = 'canceled',
+  Pending = "pending",
+  Processing = "processing",
+  Paid = "paid",
+  Failed = "failed",
+  Refunded = "refunded",
+  Canceled = "canceled",
 }
 
 export enum WebhookProcessingStatus {
-  Processing = 'processing',
-  Processed = 'processed',
-  Failed = 'failed',
+  Processing = "processing",
+  Processed = "processed",
+  Failed = "failed",
 }
 
 export const SUBSCRIPTION_ALLOWED_STATUSES = new Set<SubscriptionStatus>([

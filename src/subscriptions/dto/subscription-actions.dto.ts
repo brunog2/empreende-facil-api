@@ -1,5 +1,6 @@
 import {
   IsEnum,
+  IsIn,
   IsDateString,
   IsInt,
   IsOptional,
@@ -7,14 +8,16 @@ import {
   Max,
   MaxLength,
   Min,
-} from 'class-validator';
+} from "class-validator";
 import {
   BillingCycle,
+  SUPPORTED_PLAN_CODES,
   SubscriptionStatus,
-} from '../constants/subscription.constants';
+} from "../constants/subscription.constants";
 
 export class CreateCheckoutDto {
   @IsString()
+  @IsIn(SUPPORTED_PLAN_CODES)
   @MaxLength(50)
   planCode: string;
 
@@ -33,6 +36,7 @@ export class ExtendTrialDto {
 
 export class AdminChangePlanDto {
   @IsString()
+  @IsIn(SUPPORTED_PLAN_CODES)
   @MaxLength(50)
   planCode: string;
 

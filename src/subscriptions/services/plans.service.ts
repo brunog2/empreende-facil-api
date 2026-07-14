@@ -3,21 +3,23 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { In, Repository } from "typeorm";
 import {
+  isSupportedPlanCode,
   PlanFeature,
   PlanFeatures,
   PlanLimit,
   PlanLimits,
-} from '../constants/subscription.constants';
+  SUPPORTED_PLAN_CODES,
+} from "../constants/subscription.constants";
 import {
   SUBSCRIPTION_MESSAGES,
   SubscriptionErrorCode,
-} from '../constants/subscription-errors.constants';
-import { CreatePlanDto, UpdatePlanDto } from '../dto/plan.dto';
-import { Plan } from '../entities/plan.entity';
+} from "../constants/subscription-errors.constants";
+import { CreatePlanDto, UpdatePlanDto } from "../dto/plan.dto";
+import { Plan } from "../entities/plan.entity";
 
 @Injectable()
 export class PlansService {
@@ -28,12 +30,21 @@ export class PlansService {
 
   findActive(): Promise<Plan[]> {
     return this.plansRepository.find({
-      where: { isActive: true },
-      order: { monthlyPrice: 'ASC' },
+      where: {
+        code: In([...SUPPORTED_PLAN_CODES]),
+        isActive: true,
+      },
+      order: { monthlyPrice: "ASC" },
     });
   }
 
   async findActiveByCode(code: string): Promise<Plan> {
+    if (!isSupportedPlanCode(code)) {
+      throw new NotFoundException({
+        code: SubscriptionErrorCode.PlanNotFound,
+        message: SUBSCRIPTION_MESSAGES[SubscriptionErrorCode.PlanNotFound],
+      });
+    }
     const plan = await this.plansRepository.findOne({ where: { code } });
     if (!plan) {
       throw new NotFoundException({
@@ -51,6 +62,12 @@ export class PlansService {
   }
 
   async findByCode(code: string): Promise<Plan> {
+    if (!isSupportedPlanCode(code)) {
+      throw new NotFoundException({
+        code: SubscriptionErrorCode.PlanNotFound,
+        message: SUBSCRIPTION_MESSAGES[SubscriptionErrorCode.PlanNotFound],
+      });
+    }
     const plan = await this.plansRepository.findOne({ where: { code } });
     if (!plan) {
       throw new NotFoundException({
@@ -62,18 +79,28 @@ export class PlansService {
   }
 
   findAllAdmin(): Promise<Plan[]> {
-    return this.plansRepository.find({ order: { createdAt: 'ASC' } });
+    return this.plansRepository.find({
+      where: { code: In([...SUPPORTED_PLAN_CODES]) },
+      order: { monthlyPrice: "ASC" },
+    });
   }
 
   async create(data: CreatePlanDto): Promise<Plan> {
+    const code = data.code.trim().toLowerCase();
+    if (!isSupportedPlanCode(code)) {
+      throw new BadRequestException(
+        "O catálogo permite somente os planos Gratuito, Starter e Pro.",
+      );
+    }
     const existing = await this.plansRepository.findOne({
-      where: { code: data.code },
+      where: { code },
     });
-    if (existing) throw new ConflictException('Já existe um plano com este código.');
+    if (existing)
+      throw new ConflictException("Já existe um plano com este código.");
 
     const plan = this.plansRepository.create({
       ...data,
-      code: data.code.trim().toLowerCase(),
+      code,
       name: data.name.trim(),
       description: data.description.trim(),
       trialDays: data.trialDays ?? null,
@@ -88,19 +115,24 @@ export class PlansService {
   }
 
   async update(id: string, data: UpdatePlanDto): Promise<Plan> {
-    const plan = await this.plansRepository.findOne({ where: { id } });
-    if (!plan) throw new NotFoundException('Plano não encontrado.');
+    const plan = await this.plansRepository.findOne({
+      where: { id, code: In([...SUPPORTED_PLAN_CODES]) },
+    });
+    if (!plan) throw new NotFoundException("Plano não encontrado.");
 
     if (data.name !== undefined) plan.name = data.name.trim();
-    if (data.description !== undefined) plan.description = data.description.trim();
+    if (data.description !== undefined)
+      plan.description = data.description.trim();
     if (data.monthlyPrice !== undefined) plan.monthlyPrice = data.monthlyPrice;
     if (data.yearlyPrice !== undefined) plan.yearlyPrice = data.yearlyPrice;
     if (data.trialDays !== undefined) plan.trialDays = data.trialDays;
     if (data.durationMonths !== undefined) {
       plan.durationMonths = data.durationMonths;
     }
-    if (data.features !== undefined) plan.features = this.validateFeatures(data.features);
-    if (data.limits !== undefined) plan.limits = this.validateLimits(data.limits);
+    if (data.features !== undefined)
+      plan.features = this.validateFeatures(data.features);
+    if (data.limits !== undefined)
+      plan.limits = this.validateLimits(data.limits);
     if (data.isActive !== undefined) plan.isActive = data.isActive;
     if (data.isRecommended !== undefined) {
       plan.isRecommended = data.isRecommended;
@@ -113,8 +145,10 @@ export class PlansService {
   private validateFeatures(features: PlanFeatures): PlanFeatures {
     const normalized = {} as PlanFeatures;
     for (const feature of Object.values(PlanFeature)) {
-      if (typeof features[feature] !== 'boolean') {
-        throw new BadRequestException(`A feature ${feature} deve ser booleana.`);
+      if (typeof features[feature] !== "boolean") {
+        throw new BadRequestException(
+          `A feature ${feature} deve ser booleana.`,
+        );
       }
       normalized[feature] = features[feature];
     }
@@ -140,7 +174,7 @@ export class PlansService {
       .createQueryBuilder()
       .update(Plan)
       .set({ isRecommended: false });
-    if (exceptId) query.where('id != :exceptId', { exceptId });
+    if (exceptId) query.where("id != :exceptId", { exceptId });
     await query.execute();
   }
 }

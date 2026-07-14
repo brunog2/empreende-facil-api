@@ -1,11 +1,11 @@
-import { Repository } from 'typeorm';
-import { Customer } from '../../customers/entities/customer.entity';
-import { Product } from '../../products/entities/product.entity';
-import { Sale } from '../../sales/entities/sale.entity';
-import { PlanLimit } from '../constants/subscription.constants';
-import { Subscription } from '../entities/subscription.entity';
-import { SubscriptionAccessService } from './subscription-access.service';
-import { PlanLimitService } from './plan-limit.service';
+import { Repository } from "typeorm";
+import { Customer } from "../../customers/entities/customer.entity";
+import { Product } from "../../products/entities/product.entity";
+import { Sale } from "../../sales/entities/sale.entity";
+import { PlanLimit } from "../constants/subscription.constants";
+import { Subscription } from "../entities/subscription.entity";
+import { SubscriptionAccessService } from "./subscription-access.service";
+import { PlanLimitService } from "./plan-limit.service";
 
 function queryBuilder(count: number) {
   return {
@@ -15,7 +15,7 @@ function queryBuilder(count: number) {
   };
 }
 
-describe('PlanLimitService', () => {
+describe("PlanLimitService", () => {
   const productQuery = queryBuilder(30);
   const saleQuery = queryBuilder(50);
   const products = {
@@ -35,17 +35,26 @@ describe('PlanLimitService', () => {
   const service = new PlanLimitService(products, customers, sales, access);
 
   it.each([
-    [PlanLimit.Products, 'products'],
-    [PlanLimit.Customers, 'customers'],
-    [PlanLimit.SalesPerMonth, 'sales'],
-  ])('retorna PLAN_LIMIT_REACHED para %s', async (limit) => {
+    [PlanLimit.Products, "products"],
+    [PlanLimit.Customers, "customers"],
+    [PlanLimit.SalesPerMonth, "sales"],
+  ])("retorna PLAN_LIMIT_REACHED para %s", async (limit) => {
     await expect(
-      service.assertCanCreate(
-        'user-id',
-        limit,
-      ),
+      service.assertCanCreate("user-id", limit),
     ).rejects.toMatchObject({
-      response: { code: 'PLAN_LIMIT_REACHED' },
+      response: { code: "PLAN_LIMIT_REACHED" },
     });
+  });
+
+  it("não consulta o uso quando o limite do plano é ilimitado", async () => {
+    jest.mocked(access.getCurrentOrThrow).mockResolvedValueOnce({
+      plan: {
+        limits: { products: null, customers: null, salesPerMonth: null },
+      },
+    } as unknown as Subscription);
+
+    await expect(
+      service.assertCanCreate("user-id", PlanLimit.Products),
+    ).resolves.toBeUndefined();
   });
 });

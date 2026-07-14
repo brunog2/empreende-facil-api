@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -8,16 +9,18 @@ import {
   Max,
   MaxLength,
   Min,
-} from 'class-validator';
+} from "class-validator";
 import {
   PlanFeatures,
   PlanLimits,
-} from '../constants/subscription.constants';
+  SUPPORTED_PLAN_CODES,
+} from "../constants/subscription.constants";
 
 const MONEY_PATTERN = /^\d{1,10}(\.\d{1,2})?$/;
 
 export class CreatePlanDto {
   @IsString()
+  @IsIn(SUPPORTED_PLAN_CODES)
   @Matches(/^[a-z0-9_-]+$/)
   @MaxLength(50)
   code: string;

@@ -3,27 +3,28 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, In, Repository } from 'typeorm';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Brackets, In, Repository } from "typeorm";
 import {
   BillingCycle,
+  FREE_PLAN_CODE,
   PaymentStatus,
   SubscriptionStatus,
-} from '../constants/subscription.constants';
+} from "../constants/subscription.constants";
 import {
   AdminPaymentFiltersDto,
   AdminSubscriptionFiltersDto,
-} from '../dto/admin-subscription-filters.dto';
+} from "../dto/admin-subscription-filters.dto";
 import {
   AdminChangePlanDto,
   ExtendTrialDto,
   SuspendSubscriptionDto,
   UpdateSubscriptionDto,
-} from '../dto/subscription-actions.dto';
-import { Payment } from '../entities/payment.entity';
-import { Subscription } from '../entities/subscription.entity';
-import { PlansService } from './plans.service';
+} from "../dto/subscription-actions.dto";
+import { Payment } from "../entities/payment.entity";
+import { Subscription } from "../entities/subscription.entity";
+import { PlansService } from "./plans.service";
 
 interface StatusMetricsRow {
   total: string;
@@ -65,44 +66,47 @@ export class AdminSubscriptionsService {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     const query = this.subscriptionsRepository
-      .createQueryBuilder('subscription')
-      .leftJoinAndSelect('subscription.user', 'user')
-      .innerJoinAndSelect('subscription.plan', 'plan');
+      .createQueryBuilder("subscription")
+      .leftJoinAndSelect("subscription.user", "user")
+      .innerJoinAndSelect("subscription.plan", "plan");
 
     if (filters.search?.trim()) {
       const search = `%${filters.search.trim().toLowerCase()}%`;
       query.andWhere(
         new Brackets((qb) => {
-          qb.where('LOWER(user.full_name) LIKE :search', { search })
-            .orWhere('LOWER(user.email) LIKE :search', { search })
+          qb.where("LOWER(user.full_name) LIKE :search", { search })
+            .orWhere("LOWER(user.email) LIKE :search", { search })
             .orWhere("LOWER(COALESCE(user.business_name, '')) LIKE :search", {
               search,
             });
         }),
       );
     }
-    if (filters.plan) query.andWhere('plan.code = :plan', { plan: filters.plan });
+    if (filters.plan)
+      query.andWhere("plan.code = :plan", { plan: filters.plan });
     if (filters.status) {
-      query.andWhere('subscription.status = :status', { status: filters.status });
+      query.andWhere("subscription.status = :status", {
+        status: filters.status,
+      });
     }
     if (filters.billingCycle) {
-      query.andWhere('subscription.billing_cycle = :billingCycle', {
+      query.andWhere("subscription.billing_cycle = :billingCycle", {
         billingCycle: filters.billingCycle,
       });
     }
     if (filters.startDate) {
-      query.andWhere('subscription.created_at >= :startDate', {
+      query.andWhere("subscription.created_at >= :startDate", {
         startDate: filters.startDate,
       });
     }
     if (filters.endDate) {
-      query.andWhere('subscription.created_at <= :endDate', {
+      query.andWhere("subscription.created_at <= :endDate", {
         endDate: filters.endDate,
       });
     }
 
     query
-      .orderBy('subscription.createdAt', 'DESC')
+      .orderBy("subscription.createdAt", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -111,7 +115,7 @@ export class AdminSubscriptionsService {
     const payments = ids.length
       ? await this.paymentsRepository.find({
           where: { subscriptionId: In(ids), status: PaymentStatus.Paid },
-          order: { paidAt: 'DESC' },
+          order: { paidAt: "DESC" },
         })
       : [];
     const lastPayments = new Map<string, Payment>();
@@ -139,34 +143,52 @@ export class AdminSubscriptionsService {
 
   async getMetrics() {
     const statusRaw = (await this.subscriptionsRepository
-      .createQueryBuilder('subscription')
-      .select('COUNT(*)', 'total')
-      .addSelect("COUNT(*) FILTER (WHERE subscription.status = 'trialing')", 'trialing')
-      .addSelect("COUNT(*) FILTER (WHERE subscription.status = 'active')", 'active')
-      .addSelect("COUNT(*) FILTER (WHERE subscription.status = 'past_due')", 'pastDue')
-      .addSelect("COUNT(*) FILTER (WHERE subscription.status = 'suspended')", 'suspended')
-      .addSelect("COUNT(*) FILTER (WHERE subscription.status = 'canceled')", 'canceled')
-      .addSelect("COUNT(*) FILTER (WHERE subscription.status = 'expired')", 'expired')
+      .createQueryBuilder("subscription")
+      .select("COUNT(*)", "total")
+      .addSelect(
+        "COUNT(*) FILTER (WHERE subscription.status = 'trialing')",
+        "trialing",
+      )
+      .addSelect(
+        "COUNT(*) FILTER (WHERE subscription.status = 'active')",
+        "active",
+      )
+      .addSelect(
+        "COUNT(*) FILTER (WHERE subscription.status = 'past_due')",
+        "pastDue",
+      )
+      .addSelect(
+        "COUNT(*) FILTER (WHERE subscription.status = 'suspended')",
+        "suspended",
+      )
+      .addSelect(
+        "COUNT(*) FILTER (WHERE subscription.status = 'canceled')",
+        "canceled",
+      )
+      .addSelect(
+        "COUNT(*) FILTER (WHERE subscription.status = 'expired')",
+        "expired",
+      )
       .addSelect(
         "COUNT(*) FILTER (WHERE subscription.created_at >= DATE_TRUNC('month', CURRENT_DATE))",
-        'newThisMonth',
+        "newThisMonth",
       )
       .addSelect(
         "COUNT(*) FILTER (WHERE subscription.canceled_at >= DATE_TRUNC('month', CURRENT_DATE))",
-        'canceledThisMonth',
+        "canceledThisMonth",
       )
       .getRawOne()) as StatusMetricsRow;
 
     const byPlan = (await this.subscriptionsRepository
-      .createQueryBuilder('subscription')
-      .innerJoin('subscription.plan', 'plan')
-      .select('plan.code', 'code')
-      .addSelect('plan.name', 'name')
-      .addSelect('COUNT(*)', 'count')
-      .groupBy('plan.id')
-      .addGroupBy('plan.code')
-      .addGroupBy('plan.name')
-      .orderBy('count', 'DESC')
+      .createQueryBuilder("subscription")
+      .innerJoin("subscription.plan", "plan")
+      .select("plan.code", "code")
+      .addSelect("plan.name", "name")
+      .addSelect("COUNT(*)", "count")
+      .groupBy("plan.id")
+      .addGroupBy("plan.code")
+      .addGroupBy("plan.name")
+      .orderBy("count", "DESC")
       .getRawMany()) as PlanMetricRow[];
 
     const mrrRaw = (await this.subscriptionsRepository.query(`
@@ -219,9 +241,9 @@ export class AdminSubscriptionsService {
       canceled: Number(statusRaw.canceled),
       expired: Number(statusRaw.expired),
       byPlan: byPlan.map((item) => ({ ...item, count: Number(item.count) })),
-      estimatedMrr: mrrRaw[0]?.estimatedMrr ?? '0.00',
+      estimatedMrr: mrrRaw[0]?.estimatedMrr ?? "0.00",
       confirmedRevenueThisMonth:
-        confirmedRevenueRaw[0]?.confirmedRevenueThisMonth ?? '0.00',
+        confirmedRevenueRaw[0]?.confirmedRevenueThisMonth ?? "0.00",
       newThisMonth: Number(statusRaw.newThisMonth),
       canceledThisMonth: Number(statusRaw.canceledThisMonth),
       timeline: timeline.map((item) => ({
@@ -240,7 +262,8 @@ export class AdminSubscriptionsService {
   async update(id: string, data: UpdateSubscriptionDto, adminId: string) {
     const subscription = await this.findSubscription(id);
     if (data.status !== undefined) subscription.status = data.status;
-    if (data.billingCycle !== undefined) subscription.billingCycle = data.billingCycle;
+    if (data.billingCycle !== undefined)
+      subscription.billingCycle = data.billingCycle;
     if (data.currentPeriodEnd !== undefined) {
       subscription.currentPeriodEnd = this.parseDate(data.currentPeriodEnd);
     }
@@ -248,12 +271,17 @@ export class AdminSubscriptionsService {
       subscription.gracePeriodEndsAt = this.parseDate(data.gracePeriodEndsAt);
     }
     const saved = await this.subscriptionsRepository.save(subscription);
-    this.logAction('update', adminId, saved.id, data);
+    this.logAction("update", adminId, saved.id, data);
     return this.findOne(saved.id);
   }
 
   async extendTrial(id: string, data: ExtendTrialDto, adminId: string) {
     const subscription = await this.findSubscription(id);
+    if (subscription.plan.code === FREE_PLAN_CODE) {
+      throw new BadRequestException(
+        "O plano gratuito é permanente e não possui prazo para extensão.",
+      );
+    }
     const base =
       subscription.trialEndsAt && subscription.trialEndsAt > new Date()
         ? subscription.trialEndsAt
@@ -265,7 +293,7 @@ export class AdminSubscriptionsService {
     subscription.cancelAtPeriodEnd = false;
     subscription.canceledAt = null;
     const saved = await this.subscriptionsRepository.save(subscription);
-    this.logAction('extend-trial', adminId, id, { days: data.days });
+    this.logAction("extend-trial", adminId, id, { days: data.days });
     return this.findOne(saved.id);
   }
 
@@ -277,31 +305,40 @@ export class AdminSubscriptionsService {
     subscription.planId = plan.id;
     subscription.plan = plan;
     subscription.lockedMonthlyPrice =
-      plan.code === 'founder' ? plan.monthlyPrice : null;
+      plan.code === "founder" ? plan.monthlyPrice : null;
     subscription.lockedYearlyPrice =
-      plan.code === 'founder' ? plan.yearlyPrice : null;
+      plan.code === "founder" ? plan.yearlyPrice : null;
     subscription.planAccessEndsAt = plan.durationMonths
       ? this.addMonths(new Date(), plan.durationMonths)
       : null;
     if (data.billingCycle) subscription.billingCycle = data.billingCycle;
+    if (plan.code === FREE_PLAN_CODE) {
+      subscription.status = SubscriptionStatus.Active;
+      subscription.billingCycle = BillingCycle.Monthly;
+      subscription.trialStartsAt = null;
+      subscription.trialEndsAt = null;
+      subscription.currentPeriodStart = new Date();
+      subscription.currentPeriodEnd = null;
+      subscription.gracePeriodEndsAt = null;
+      subscription.cancelAtPeriodEnd = false;
+      subscription.lockedMonthlyPrice = null;
+      subscription.lockedYearlyPrice = null;
+      subscription.providerSubscriptionId = null;
+    }
     const saved = await this.subscriptionsRepository.save(subscription);
-    this.logAction('change-plan', adminId, id, {
+    this.logAction("change-plan", adminId, id, {
       planCode: plan.code,
       billingCycle: subscription.billingCycle,
     });
     return this.findOne(saved.id);
   }
 
-  async suspend(
-    id: string,
-    data: SuspendSubscriptionDto,
-    adminId: string,
-  ) {
+  async suspend(id: string, data: SuspendSubscriptionDto, adminId: string) {
     const subscription = await this.findSubscription(id);
     subscription.status = SubscriptionStatus.Suspended;
     subscription.gracePeriodEndsAt = null;
     const saved = await this.subscriptionsRepository.save(subscription);
-    this.logAction('suspend', adminId, id, { reason: data.reason ?? null });
+    this.logAction("suspend", adminId, id, { reason: data.reason ?? null });
     return this.findOne(saved.id);
   }
 
@@ -309,13 +346,22 @@ export class AdminSubscriptionsService {
     const subscription = await this.findSubscription(id);
     const now = new Date();
     subscription.status =
-      subscription.trialEndsAt && subscription.trialEndsAt > now
+      subscription.plan.code !== FREE_PLAN_CODE &&
+      subscription.trialEndsAt &&
+      subscription.trialEndsAt > now
         ? SubscriptionStatus.Trialing
         : SubscriptionStatus.Active;
     subscription.gracePeriodEndsAt = null;
     subscription.cancelAtPeriodEnd = false;
     subscription.canceledAt = null;
-    if (subscription.status === SubscriptionStatus.Active) {
+    if (subscription.plan.code === FREE_PLAN_CODE) {
+      subscription.billingCycle = BillingCycle.Monthly;
+      subscription.trialStartsAt = null;
+      subscription.trialEndsAt = null;
+      subscription.currentPeriodStart ??= now;
+      subscription.currentPeriodEnd = null;
+      subscription.planAccessEndsAt = null;
+    } else if (subscription.status === SubscriptionStatus.Active) {
       subscription.currentPeriodStart ??= now;
       subscription.currentPeriodEnd ??= this.addBillingPeriod(
         now,
@@ -323,7 +369,7 @@ export class AdminSubscriptionsService {
       );
     }
     const saved = await this.subscriptionsRepository.save(subscription);
-    this.logAction('reactivate', adminId, id, {});
+    this.logAction("reactivate", adminId, id, {});
     return this.findOne(saved.id);
   }
 
@@ -331,31 +377,43 @@ export class AdminSubscriptionsService {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     const query = this.paymentsRepository
-      .createQueryBuilder('payment')
-      .innerJoinAndSelect('payment.subscription', 'subscription')
-      .leftJoinAndSelect('subscription.user', 'user')
-      .innerJoinAndSelect('subscription.plan', 'plan');
-    if (filters.status) query.andWhere('payment.status = :status', { status: filters.status });
+      .createQueryBuilder("payment")
+      .innerJoinAndSelect("payment.subscription", "subscription")
+      .leftJoinAndSelect("subscription.user", "user")
+      .innerJoinAndSelect("subscription.plan", "plan");
+    if (filters.status)
+      query.andWhere("payment.status = :status", { status: filters.status });
     if (filters.search?.trim()) {
       const search = `%${filters.search.trim().toLowerCase()}%`;
       query.andWhere(
         new Brackets((qb) => {
-          qb.where('LOWER(user.full_name) LIKE :search', { search }).orWhere(
-            'LOWER(user.email) LIKE :search',
+          qb.where("LOWER(user.full_name) LIKE :search", { search }).orWhere(
+            "LOWER(user.email) LIKE :search",
             { search },
           );
         }),
       );
     }
-    query.orderBy('payment.createdAt', 'DESC').skip((page - 1) * limit).take(limit);
+    query
+      .orderBy("payment.createdAt", "DESC")
+      .skip((page - 1) * limit)
+      .take(limit);
     const [data, total] = await query.getManyAndCount();
     return {
       data: data.map((payment) => this.toAdminPaymentResponse(payment)),
-      meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
     };
   }
 
-  private async findSubscription(id: string, payments = false): Promise<Subscription> {
+  private async findSubscription(
+    id: string,
+    payments = false,
+  ): Promise<Subscription> {
     const relations = payments
       ? { user: true, plan: true, payments: true }
       : { user: true, plan: true };
@@ -363,19 +421,22 @@ export class AdminSubscriptionsService {
       where: { id },
       relations,
     });
-    if (!subscription) throw new NotFoundException('Assinatura não encontrada.');
+    if (!subscription)
+      throw new NotFoundException("Assinatura não encontrada.");
     return subscription;
   }
 
   private parseDate(value: string): Date {
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) throw new BadRequestException('Data inválida.');
+    if (Number.isNaN(date.getTime()))
+      throw new BadRequestException("Data inválida.");
     return date;
   }
 
   private addBillingPeriod(date: Date, cycle: BillingCycle): Date {
     const result = new Date(date);
-    if (cycle === BillingCycle.Yearly) result.setFullYear(result.getFullYear() + 1);
+    if (cycle === BillingCycle.Yearly)
+      result.setFullYear(result.getFullYear() + 1);
     else result.setMonth(result.getMonth() + 1);
     return result;
   }
@@ -392,7 +453,9 @@ export class AdminSubscriptionsService {
     subscriptionId: string,
     details: object,
   ): void {
-    this.logger.log(JSON.stringify({ action, adminId, subscriptionId, details }));
+    this.logger.log(
+      JSON.stringify({ action, adminId, subscriptionId, details }),
+    );
   }
 
   private toAdminSubscriptionResponse(

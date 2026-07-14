@@ -241,30 +241,35 @@ API antes da criação. Produtos em soft delete não entram na contagem.
 
 Os preços e regras ficam no PostgreSQL, nunca espalhados pelo front-end:
 
-- `trial`: gratuito por 14 dias;
-- `starter`: R$ 49,90/mês, 1 usuário, até 500 produtos, 500 clientes e 1.000 vendas/mês;
-- `pro`: R$ 79,90/mês, até 5 usuários, 5.000 produtos, 5.000 clientes e 10.000 vendas/mês;
-- `business`: R$ 129,90/mês, usuários, produtos, clientes e vendas ilimitados;
-- `founder`: R$ 39,90/mês para sempre para contratos feitos durante o lançamento, com recursos e limites do Pro.
+- `trial` (exibido como **Gratuito**): gratuito permanentemente, com até 30
+  produtos, 30 clientes, 50 vendas/mês e relatórios básicos;
+- `starter`: R$ 49,90/mês, até 1.000 produtos, 1.000 clientes e 1.000 vendas/mês;
+- `pro`: R$ 79,90/mês, com produtos, clientes e vendas ilimitados.
 
-O Starter inclui relatórios básicos. Pro acrescenta relatórios avançados,
-exportação Excel/PDF, backup automático, permissões por usuário e suporte
-prioritário. Business acrescenta suporte premium e remove os limites. O preço
-do Plano Fundador é gravado na assinatura quando o pagamento é confirmado,
-portanto alterações futuras no preço do catálogo não afetam o contrato já
-ativado.
+O Gratuito oferece os módulos essenciais com limites de uso. O Starter amplia
+os limites e inclui relatórios avançados, mas não permite exportação de
+planilhas ou PDF. Pro acrescenta exportação Excel/PDF, backup automático e
+suporte prioritário. A plataforma
+possui uma conta por loja, portanto os planos não usam limites ou benefícios
+baseados em quantidade de usuários.
+
+O catálogo aceita somente os códigos `trial`, `starter` e `pro`. Planos antigos
+aposentados permanecem no banco apenas para preservar assinaturas históricas,
+mas não são retornados para novas contratações nem para edição administrativa.
 
 Use a tela `/admin/planos` para editar preços, features, limites, disponibilidade
 e destaque. Também é possível usar `PATCH /api/admin/plans/:id`.
 
 ### Cadastro e compatibilidade
 
-O cadastro de cliente cria usuário e teste gratuito na mesma transação. As
-contas antigas recebem o plano `trial` no backfill. Administradores não recebem
-assinatura.
+O cadastro de cliente cria usuário e assinatura gratuita permanente na mesma
+transação. As contas antigas no código `trial` são mantidas no Gratuito sem
+data de expiração. Administradores não recebem assinatura. Quando um plano pago
+termina ou é cancelado, a conta retorna ao Gratuito em vez de perder o acesso à
+plataforma.
 
 Para testar, cadastre uma nova conta no front-end, abra `/assinatura` e confirme
-o status `Em teste`, os 14 dias e os limites. Para simular suspensão, acesse
+o status `Ativa` e os limites do Gratuito. Para simular suspensão, acesse
 `/admin/assinaturas`, use a ação **Suspender** e tente abrir um módulo do negócio
 com o cliente. Perfil, planos e `/assinatura` continuam acessíveis. Use
 **Reativar** para restaurar o acesso.

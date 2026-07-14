@@ -3,31 +3,32 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
-import { UserRole } from '../../users/user-access.constants';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { InjectRepository } from "@nestjs/typeorm";
+import { EntityManager, Repository } from "typeorm";
+import { User } from "../../users/entities/user.entity";
+import { UserRole } from "../../users/user-access.constants";
 import {
   BillingCycle,
+  FREE_PLAN_CODE,
   PaymentStatus,
   SubscriptionStatus,
-} from '../constants/subscription.constants';
+} from "../constants/subscription.constants";
 import {
   SUBSCRIPTION_MESSAGES,
   SubscriptionErrorCode,
-} from '../constants/subscription-errors.constants';
-import { CreateCheckoutDto } from '../dto/subscription-actions.dto';
-import { Payment } from '../entities/payment.entity';
-import { Plan } from '../entities/plan.entity';
-import { Subscription } from '../entities/subscription.entity';
-import { PaymentProviderRegistry } from '../providers/payment-provider.registry';
-import { PlanLimitService } from './plan-limit.service';
-import { PlansService } from './plans.service';
-import { SubscriptionAccessService } from './subscription-access.service';
+} from "../constants/subscription-errors.constants";
+import { CreateCheckoutDto } from "../dto/subscription-actions.dto";
+import { Payment } from "../entities/payment.entity";
+import { Plan } from "../entities/plan.entity";
+import { Subscription } from "../entities/subscription.entity";
+import { PaymentProviderRegistry } from "../providers/payment-provider.registry";
+import { PlanLimitService } from "./plan-limit.service";
+import { PlansService } from "./plans.service";
+import { SubscriptionAccessService } from "./subscription-access.service";
 
-type CheckoutAction = 'checkout' | 'change_plan' | 'regularization';
+type CheckoutAction = "checkout" | "change_plan" | "regularization";
 
 @Injectable()
 export class SubscriptionsService {
@@ -45,7 +46,7 @@ export class SubscriptionsService {
     private readonly configService: ConfigService,
   ) {}
 
-  async createTrialForUser(
+  async createFreeSubscriptionForUser(
     user: User,
     manager: EntityManager,
   ): Promise<Subscription | null> {
@@ -57,29 +58,27 @@ export class SubscriptionsService {
     });
     if (existing) return existing;
 
-    const trialPlan = await manager.getRepository(Plan).findOne({
-      where: { code: 'trial', isActive: true },
+    const freePlan = await manager.getRepository(Plan).findOne({
+      where: { code: FREE_PLAN_CODE, isActive: true },
     });
-    if (!trialPlan) {
+    if (!freePlan) {
       throw new BadRequestException({
         code: SubscriptionErrorCode.PlanNotFound,
-        message: 'O plano de teste padrão não está configurado.',
+        message: "O plano gratuito padrão não está configurado.",
       });
     }
 
     const now = new Date();
-    const trialEndsAt = new Date(now);
-    trialEndsAt.setDate(trialEndsAt.getDate() + (trialPlan.trialDays ?? 14));
 
     return subscriptionRepository.save(
       subscriptionRepository.create({
         userId: user.id,
-        planId: trialPlan.id,
-        status: SubscriptionStatus.Trialing,
+        planId: freePlan.id,
+        status: SubscriptionStatus.Active,
         billingCycle: BillingCycle.Monthly,
-        trialStartsAt: now,
-        trialEndsAt,
-        currentPeriodStart: null,
+        trialStartsAt: null,
+        trialEndsAt: null,
+        currentPeriodStart: now,
         currentPeriodEnd: null,
         gracePeriodEndsAt: null,
         planAccessEndsAt: null,
@@ -87,7 +86,7 @@ export class SubscriptionsService {
         cancelAtPeriodEnd: false,
         lockedMonthlyPrice: null,
         lockedYearlyPrice: null,
-        provider: 'internal',
+        provider: "internal",
         providerCustomerId: null,
         providerSubscriptionId: null,
       }),
@@ -95,7 +94,7 @@ export class SubscriptionsService {
   }
 
   async getMine(userId: string) {
-    const subscription = await this.accessService.getCurrentOrThrow(userId);
+    const subscription = await this.accessService.assertAccess(userId);
     return this.toSubscriptionResponse(subscription);
   }
 
@@ -107,26 +106,31 @@ export class SubscriptionsService {
     const subscription = await this.accessService.getCurrentOrThrow(userId);
     const payments = await this.paymentsRepository.find({
       where: { subscriptionId: subscription.id },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
     });
     return payments.map((payment) => this.toPaymentResponse(payment));
   }
 
   checkout(userId: string, data: CreateCheckoutDto) {
-    return this.createPendingCheckout(userId, data, 'checkout');
+    return this.createPendingCheckout(userId, data, "checkout");
   }
 
   changePlan(userId: string, data: CreateCheckoutDto) {
-    return this.createPendingCheckout(userId, data, 'change_plan');
+    return this.createPendingCheckout(userId, data, "change_plan");
   }
 
   async cancel(userId: string) {
     const subscription = await this.accessService.getCurrentOrThrow(userId);
+    if (subscription.plan.code === FREE_PLAN_CODE) {
+      throw new BadRequestException(
+        "O plano gratuito não precisa ser cancelado.",
+      );
+    }
     if (
       subscription.status === SubscriptionStatus.Canceled ||
       subscription.status === SubscriptionStatus.Expired
     ) {
-      throw new BadRequestException('Esta assinatura já está encerrada.');
+      throw new BadRequestException("Esta assinatura já está encerrada.");
     }
 
     if (subscription.providerSubscriptionId && subscription.provider) {
@@ -158,7 +162,9 @@ export class SubscriptionsService {
 
     if (subscription.providerSubscriptionId && subscription.provider) {
       const provider = this.providerRegistry.get(subscription.provider);
-      await provider.reactivateSubscription(subscription.providerSubscriptionId);
+      await provider.reactivateSubscription(
+        subscription.providerSubscriptionId,
+      );
     }
 
     subscription.cancelAtPeriodEnd = false;
@@ -177,26 +183,29 @@ export class SubscriptionsService {
       this.plansService.findActiveByCode(data.planCode),
       this.usersRepository.findOne({ where: { id: userId } }),
     ]);
-    if (!user) throw new BadRequestException('Usuário não encontrado.');
-    if (plan.code === 'trial') {
-      throw new BadRequestException('O plano de teste não pode ser contratado.');
+    if (!user) throw new BadRequestException("Usuário não encontrado.");
+    if (plan.code === FREE_PLAN_CODE) {
+      throw new BadRequestException(
+        "O plano gratuito é ativado automaticamente no cadastro.",
+      );
     }
     if (plan.durationMonths && data.billingCycle === BillingCycle.Yearly) {
       throw new BadRequestException(
-        'Este plano promocional está disponível apenas no ciclo mensal.',
+        "Este plano promocional está disponível apenas no ciclo mensal.",
       );
     }
 
     const providerName = this.configService.get<string>(
-      'PAYMENT_PROVIDER',
-      'mock',
+      "PAYMENT_PROVIDER",
+      "mock",
     );
     const provider = this.providerRegistry.get(providerName);
     const isCurrentPlan = subscription.planId === plan.id;
     const amount =
       data.billingCycle === BillingCycle.Yearly
         ? (isCurrentPlan && subscription.lockedYearlyPrice) || plan.yearlyPrice
-        : (isCurrentPlan && subscription.lockedMonthlyPrice) || plan.monthlyPrice;
+        : (isCurrentPlan && subscription.lockedMonthlyPrice) ||
+          plan.monthlyPrice;
 
     const payment = await this.paymentsRepository.save(
       this.paymentsRepository.create({
@@ -258,9 +267,7 @@ export class SubscriptionsService {
       throw new BadGatewayException({
         code: SubscriptionErrorCode.CheckoutCreationFailed,
         message:
-          SUBSCRIPTION_MESSAGES[
-            SubscriptionErrorCode.CheckoutCreationFailed
-          ],
+          SUBSCRIPTION_MESSAGES[SubscriptionErrorCode.CheckoutCreationFailed],
       });
     }
   }

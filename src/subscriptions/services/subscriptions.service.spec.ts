@@ -1,13 +1,16 @@
-import { EntityManager, Repository } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
-import { UserRole } from '../../users/user-access.constants';
-import { BillingCycle, SubscriptionStatus } from '../constants/subscription.constants';
-import { Payment } from '../entities/payment.entity';
-import { Plan } from '../entities/plan.entity';
-import { Subscription } from '../entities/subscription.entity';
-import { SubscriptionsService } from './subscriptions.service';
+import { EntityManager, Repository } from "typeorm";
+import { User } from "../../users/entities/user.entity";
+import { UserRole } from "../../users/user-access.constants";
+import {
+  BillingCycle,
+  SubscriptionStatus,
+} from "../constants/subscription.constants";
+import { Payment } from "../entities/payment.entity";
+import { Plan } from "../entities/plan.entity";
+import { Subscription } from "../entities/subscription.entity";
+import { SubscriptionsService } from "./subscriptions.service";
 
-describe('SubscriptionsService', () => {
+describe("SubscriptionsService", () => {
   const subscriptionsRepository = {
     save: jest.fn(async (value: Subscription) => value),
   } as unknown as Repository<Subscription>;
@@ -25,8 +28,8 @@ describe('SubscriptionsService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('cria assinatura de teste ao cadastrar cliente', async () => {
-    const plan = { id: 'trial-plan', trialDays: 14 } as Plan;
+  it("cria assinatura gratuita permanente ao cadastrar cliente", async () => {
+    const plan = { id: "free-plan", code: "trial", trialDays: null } as Plan;
     const subscriptionRepository = {
       findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn((value) => value),
@@ -39,35 +42,50 @@ describe('SubscriptionsService', () => {
           : subscriptionRepository,
       ),
     } as unknown as EntityManager;
-    const user = { id: 'user-id', role: UserRole.Customer } as User;
+    const user = { id: "user-id", role: UserRole.Customer } as User;
 
-    const result = await service.createTrialForUser(user, manager);
+    const result = await service.createFreeSubscriptionForUser(user, manager);
     expect(result).toMatchObject({
-      userId: 'user-id',
-      planId: 'trial-plan',
-      status: SubscriptionStatus.Trialing,
+      userId: "user-id",
+      planId: "free-plan",
+      status: SubscriptionStatus.Active,
+      trialStartsAt: null,
+      trialEndsAt: null,
+      currentPeriodEnd: null,
     });
   });
 
-  it('marca cancelamento apenas para o fim do período', async () => {
+  it("marca cancelamento apenas para o fim do período", async () => {
     const subscription = {
-      id: 'subscription-id',
+      id: "subscription-id",
       status: SubscriptionStatus.Active,
       billingCycle: BillingCycle.Monthly,
       cancelAtPeriodEnd: false,
       providerSubscriptionId: null,
       provider: null,
-      plan: {},
+      plan: { code: "starter" },
     } as Subscription;
     access.getCurrentOrThrow.mockResolvedValue(subscription);
-    const result = await service.cancel('user-id');
+    const result = await service.cancel("user-id");
     expect(result.cancelAtPeriodEnd).toBe(true);
     expect(subscription.status).toBe(SubscriptionStatus.Active);
   });
 
-  it('reativa cancelamento antes do fim do período', async () => {
+  it("não permite cancelar o plano gratuito", async () => {
+    access.getCurrentOrThrow.mockResolvedValue({
+      id: "subscription-id",
+      status: SubscriptionStatus.Active,
+      plan: { code: "trial" },
+    } as Subscription);
+
+    await expect(service.cancel("user-id")).rejects.toThrow(
+      "O plano gratuito não precisa ser cancelado.",
+    );
+  });
+
+  it("reativa cancelamento antes do fim do período", async () => {
     const subscription = {
-      id: 'subscription-id',
+      id: "subscription-id",
       status: SubscriptionStatus.Active,
       billingCycle: BillingCycle.Monthly,
       cancelAtPeriodEnd: true,
@@ -79,7 +97,7 @@ describe('SubscriptionsService', () => {
       plan: {},
     } as Subscription;
     access.getCurrentOrThrow.mockResolvedValue(subscription);
-    const result = await service.reactivate('user-id');
+    const result = await service.reactivate("user-id");
     expect(result.cancelAtPeriodEnd).toBe(false);
     expect(result.canceledAt).toBeNull();
   });
