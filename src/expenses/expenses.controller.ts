@@ -14,10 +14,18 @@ import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { BulkDeleteDto } from '../common/dto/bulk-delete.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionGuard } from '../auth/guards/permission.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { UserPermission } from '../users/user-access.constants';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SubscriptionGuard } from '../subscriptions/guards/subscription.guard';
+import { RequireFeature } from '../subscriptions/decorators/require-feature.decorator';
+import { PlanFeature } from '../subscriptions/constants/subscription.constants';
 
 @Controller('expenses')
-@UseGuards(JwtAuthGuard)
+@RequirePermission(UserPermission.Expenses)
+@RequireFeature(PlanFeature.Expenses)
+@UseGuards(JwtAuthGuard, PermissionGuard, SubscriptionGuard)
 export class ExpensesController {
   constructor(private expensesService: ExpensesService) {}
 
@@ -93,5 +101,3 @@ export class ExpensesController {
     return this.expensesService.deleteExpense(id, user.id);
   }
 }
-
-

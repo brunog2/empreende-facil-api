@@ -52,8 +52,11 @@ export class AuthController {
       fullName: fullUser.fullName,
       businessName: fullUser.businessName,
       phone: fullUser.phone,
+      role: fullUser.role,
+      isActive: fullUser.isActive,
+      permissions: fullUser.permissions || [],
+      createdAt: fullUser.createdAt,
     };
   }
 }
-
 

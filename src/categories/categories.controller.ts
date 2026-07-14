@@ -15,10 +15,18 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FilterCategoriesDto } from './dto/filter-categories.dto';
 import { BulkDeleteDto } from '../common/dto/bulk-delete.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionGuard } from '../auth/guards/permission.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { UserPermission } from '../users/user-access.constants';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SubscriptionGuard } from '../subscriptions/guards/subscription.guard';
+import { RequireFeature } from '../subscriptions/decorators/require-feature.decorator';
+import { PlanFeature } from '../subscriptions/constants/subscription.constants';
 
 @Controller('categories')
-@UseGuards(JwtAuthGuard)
+@RequirePermission(UserPermission.Categories)
+@RequireFeature(PlanFeature.Categories)
+@UseGuards(JwtAuthGuard, PermissionGuard, SubscriptionGuard)
 export class CategoriesController {
   constructor(private categoriesService: CategoriesService) {}
 
@@ -85,5 +93,3 @@ export class CategoriesController {
     return this.categoriesService.deleteCategory(id, user.id);
   }
 }
-
-

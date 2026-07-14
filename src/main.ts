@@ -7,7 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import { runMigrations } from "./database/run-migrations";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   
   // Executar migrations antes de iniciar o servidor
   const configService = app.get(ConfigService);

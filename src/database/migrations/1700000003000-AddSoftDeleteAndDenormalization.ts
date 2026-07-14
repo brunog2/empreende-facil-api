@@ -5,14 +5,16 @@ export class AddSoftDeleteAndDenormalization1700000003000
 {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Adicionar coluna deleted_at na tabela products
-    await queryRunner.addColumn(
-      'products',
-      new TableColumn({
-        name: 'deleted_at',
-        type: 'timestamp',
-        isNullable: true,
-      }),
-    );
+    if (!(await queryRunner.hasColumn('products', 'deleted_at'))) {
+      await queryRunner.addColumn(
+        'products',
+        new TableColumn({
+          name: 'deleted_at',
+          type: 'timestamp',
+          isNullable: true,
+        }),
+      );
+    }
 
     // Criar índice em products.deleted_at para performance
     await queryRunner.query(`
@@ -20,25 +22,29 @@ export class AddSoftDeleteAndDenormalization1700000003000
     `);
 
     // Adicionar colunas product_name e product_price na tabela sale_items
-    await queryRunner.addColumn(
-      'sale_items',
-      new TableColumn({
-        name: 'product_name',
-        type: 'varchar',
-        isNullable: true,
-      }),
-    );
+    if (!(await queryRunner.hasColumn('sale_items', 'product_name'))) {
+      await queryRunner.addColumn(
+        'sale_items',
+        new TableColumn({
+          name: 'product_name',
+          type: 'varchar',
+          isNullable: true,
+        }),
+      );
+    }
 
-    await queryRunner.addColumn(
-      'sale_items',
-      new TableColumn({
-        name: 'product_price',
-        type: 'decimal',
-        precision: 10,
-        scale: 2,
-        isNullable: true,
-      }),
-    );
+    if (!(await queryRunner.hasColumn('sale_items', 'product_price'))) {
+      await queryRunner.addColumn(
+        'sale_items',
+        new TableColumn({
+          name: 'product_price',
+          type: 'decimal',
+          precision: 10,
+          scale: 2,
+          isNullable: true,
+        }),
+      );
+    }
 
     // Remover constraint RESTRICT e criar SET NULL
     // Primeiro, remover a constraint existente
@@ -97,4 +103,3 @@ export class AddSoftDeleteAndDenormalization1700000003000
     await queryRunner.dropColumn('products', 'deleted_at');
   }
 }
-

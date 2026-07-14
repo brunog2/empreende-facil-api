@@ -1,3 +1,8 @@
+import {
+  UserPermission,
+  UserRole,
+} from '../../users/user-access.constants';
+
 export class AuthResponseDto {
   accessToken: string;
   refreshToken: string;
@@ -7,7 +12,9 @@ export class AuthResponseDto {
     fullName: string;
     businessName: string | null;
     phone: string | null;
+    role: UserRole;
+    isActive: boolean;
+    permissions: UserPermission[];
   };
 }
-
 

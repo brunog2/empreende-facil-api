@@ -15,10 +15,18 @@ import { UpdateSaleDto } from './dto/update-sale.dto';
 import { FilterSalesDto } from './dto/filter-sales.dto';
 import { BulkDeleteDto } from '../common/dto/bulk-delete.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionGuard } from '../auth/guards/permission.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { UserPermission } from '../users/user-access.constants';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SubscriptionGuard } from '../subscriptions/guards/subscription.guard';
+import { RequireFeature } from '../subscriptions/decorators/require-feature.decorator';
+import { PlanFeature } from '../subscriptions/constants/subscription.constants';
 
 @Controller('sales')
-@UseGuards(JwtAuthGuard)
+@RequirePermission(UserPermission.Sales)
+@RequireFeature(PlanFeature.Sales)
+@UseGuards(JwtAuthGuard, PermissionGuard, SubscriptionGuard)
 export class SalesController {
   constructor(private salesService: SalesService) {}
 
@@ -101,5 +109,3 @@ export class SalesController {
     return this.salesService.deleteSale(id, user.id);
   }
 }
-
-

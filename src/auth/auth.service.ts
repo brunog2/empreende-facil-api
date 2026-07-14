@@ -3,12 +3,16 @@ import {
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
+import { Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { DataSource, QueryFailedError } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { SubscriptionsService } from '../subscriptions/services/subscriptions.service';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +20,9 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private dataSource: DataSource,
+    @Inject(forwardRef(() => SubscriptionsService))
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -24,13 +31,31 @@ export class AuthService {
       throw new ConflictException('Email já está em uso');
     }
 
-    const user = await this.usersService.create({
-      email: registerDto.email,
-      password: registerDto.password,
-      fullName: registerDto.fullName,
-      businessName: registerDto.businessName,
-      phone: registerDto.phone,
-    });
+    let user: User;
+    try {
+      user = await this.dataSource.transaction(async (manager) => {
+        const createdUser = await this.usersService.create(
+          {
+            email: registerDto.email,
+            password: registerDto.password,
+            fullName: registerDto.fullName,
+            businessName: registerDto.businessName,
+            phone: registerDto.phone,
+          },
+          manager,
+        );
+        await this.subscriptionsService.createTrialForUser(createdUser, manager);
+        return createdUser;
+      });
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23505'
+      ) {
+        throw new ConflictException('Email já está em uso');
+      }
+      throw error;
+    }
 
     return this.generateTokens(user);
   }
@@ -41,6 +66,12 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
+    if (!user.isActive) {
+      throw new UnauthorizedException(
+        'Conta desativada. Entre em contato com o suporte',
+      );
+    }
+
     const isPasswordValid = await this.usersService.validatePassword(
       user,
       loginDto.password,
@@ -49,6 +80,7 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
+    await this.usersService.recordLogin(user);
     return this.generateTokens(user);
   }
 
@@ -59,7 +91,7 @@ export class AuthService {
       });
 
       const user = await this.usersService.findById(payload.sub);
-      if (!user) {
+      if (!user || !user.isActive) {
         throw new UnauthorizedException('Usuário não encontrado');
       }
 
@@ -69,8 +101,8 @@ export class AuthService {
     }
   }
 
-  private async generateTokens(user: any): Promise<AuthResponseDto> {
-    const payload = { sub: user.id, email: user.email };
+  private async generateTokens(user: User): Promise<AuthResponseDto> {
+    const payload = { sub: user.id, role: user.role };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -94,9 +126,10 @@ export class AuthService {
         fullName: user.fullName,
         businessName: user.businessName,
         phone: user.phone,
+        role: user.role,
+        isActive: user.isActive,
+        permissions: user.permissions || [],
       },
     };
   }
 }
-
-

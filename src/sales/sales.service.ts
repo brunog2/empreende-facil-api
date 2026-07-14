@@ -6,12 +6,15 @@ import { UpdateSaleDto } from './dto/update-sale.dto';
 import { FilterSalesDto } from './dto/filter-sales.dto';
 import { PaginatedResponse } from '../common/dto/pagination.dto';
 import { Sale } from './entities/sale.entity';
+import { PlanLimitService } from '../subscriptions/services/plan-limit.service';
+import { PlanLimit } from '../subscriptions/constants/subscription.constants';
 
 @Injectable()
 export class SalesService {
   constructor(
     private repository: SalesRepository,
     private productsRepository: ProductsRepository,
+    private planLimitService: PlanLimitService,
   ) {}
 
   async getAllSales(userId: string) {
@@ -34,6 +37,7 @@ export class SalesService {
   }
 
   async createSale(userId: string, data: CreateSaleDto) {
+    await this.planLimitService.assertCanCreate(userId, PlanLimit.SalesPerMonth);
     if (!data.items || data.items.length === 0) {
       throw new BadRequestException('A venda deve ter pelo menos um item');
     }
@@ -262,5 +266,4 @@ export class SalesService {
     return this.repository.getTopProducts(userId, limit);
   }
 }
-
 

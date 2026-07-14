@@ -15,10 +15,18 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { BulkDeleteDto } from '../common/dto/bulk-delete.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionGuard } from '../auth/guards/permission.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { UserPermission } from '../users/user-access.constants';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { SubscriptionGuard } from '../subscriptions/guards/subscription.guard';
+import { RequireFeature } from '../subscriptions/decorators/require-feature.decorator';
+import { PlanFeature } from '../subscriptions/constants/subscription.constants';
 
 @Controller('products')
-@UseGuards(JwtAuthGuard)
+@RequirePermission(UserPermission.Products)
+@RequireFeature(PlanFeature.Products)
+@UseGuards(JwtAuthGuard, PermissionGuard, SubscriptionGuard)
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
@@ -91,5 +99,3 @@ export class ProductsController {
     return this.productsService.deleteProduct(id, user.id);
   }
 }
-
-
