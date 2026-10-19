@@ -5,10 +5,15 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { FilterCustomersDto } from './dto/filter-customers.dto';
 import { PaginatedResponse } from '../common/dto/pagination.dto';
 import { Customer } from './entities/customer.entity';
+import { PlanLimitService } from '../subscriptions/services/plan-limit.service';
+import { PlanLimit } from '../subscriptions/constants/subscription.constants';
 
 @Injectable()
 export class CustomersService {
-  constructor(private repository: CustomersRepository) {}
+  constructor(
+    private repository: CustomersRepository,
+    private planLimitService: PlanLimitService,
+  ) {}
 
   async getAllCustomers(userId: string) {
     return this.repository.findAll(userId);
@@ -26,6 +31,7 @@ export class CustomersService {
   }
 
   async createCustomer(userId: string, data: CreateCustomerDto) {
+    await this.planLimitService.assertCanCreate(userId, PlanLimit.Customers);
     // Validações de negócio
     if (!data.name || data.name.trim().length === 0) {
       throw new BadRequestException('O nome do cliente é obrigatório');
@@ -78,5 +84,4 @@ export class CustomersService {
     return emailRegex.test(email);
   }
 }
-
 

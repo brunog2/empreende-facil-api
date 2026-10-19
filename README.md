@@ -29,15 +29,12 @@ cp .env.example .env
 ### 3. Iniciar PostgreSQL com Docker
 
 ```bash
-cd docker
-docker-compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
-### 4. Executar migrations
+### 4. Migrations
 
-```bash
-npm run migration:run
-```
+As migrations são executadas automaticamente ao iniciar a API.
 
 ### 5. Iniciar o servidor
 
@@ -167,9 +164,146 @@ Envie o token no header:
 Authorization: Bearer <token>
 ```
 
+## Administração da plataforma
+
+O painel administrativo usa uma conta com papel `admin`, separada das contas
+de clientes. Em ambiente local, configure as credenciais no `.env`:
+
+```env
+ADMIN_EMAIL=adm@adm.com
+ADMIN_PASSWORD=123456
+ADMIN_NAME=Administrador
+```
+
+Quando essas variáveis estão presentes, a conta administrativa é criada de
+forma idempotente na inicialização. O painel fica disponível em
+`/admin/login` no front-end.
+
+Principais endpoints administrativos:
+
+- `GET /api/admin/overview` - indicadores de contas cadastradas
+- `GET /api/admin/users` - listagem paginada com busca e status
+- `GET /api/admin/users/:id` - detalhes de uma conta
+- `PATCH /api/admin/users/:id` - dados, status e permissões
+- `DELETE /api/admin/users/:id` - exclusão da conta e dados relacionados
+
+As permissões disponíveis são: `dashboard`, `sales`, `products`,
+`categories`, `customers`, `expenses` e `reports`. Elas são validadas no front-end
+e também nas rotas da API.
+
+## Assinaturas SaaS
+
+Cada cliente possui uma assinatura atual vinculada por `subscriptions.user_id`.
+O vínculo foi isolado no módulo `subscriptions` para permitir a troca futura de
+`user_id` por `account_id` sem migrar agora os dados operacionais existentes.
+
+O acesso a produtos, vendas, clientes, categorias e despesas exige, em conjunto:
+
+- usuário administrativamente ativo;
+- permissão individual para o módulo;
+- assinatura válida (`trialing`, `active` ou `past_due` dentro da tolerância);
+- feature habilitada no plano.
+
+Os limites de produtos, clientes e vendas mensais são contados e validados pela
+API antes da criação. Produtos em soft delete não entram na contagem.
+
+### Endpoints de planos e cliente
+
+- `GET /api/plans`
+- `GET /api/plans/:code`
+- `GET /api/subscriptions/me`
+- `GET /api/subscriptions/me/usage`
+- `GET /api/subscriptions/me/payments`
+- `POST /api/subscriptions/checkout`
+- `POST /api/subscriptions/change-plan`
+- `POST /api/subscriptions/cancel`
+- `POST /api/subscriptions/reactivate`
+
+### Endpoints administrativos de assinatura
+
+- `GET /api/admin/subscriptions`
+- `GET /api/admin/subscriptions/metrics`
+- `GET /api/admin/subscriptions/:id`
+- `PATCH /api/admin/subscriptions/:id`
+- `POST /api/admin/subscriptions/:id/extend-trial`
+- `POST /api/admin/subscriptions/:id/change-plan`
+- `POST /api/admin/subscriptions/:id/suspend`
+- `POST /api/admin/subscriptions/:id/reactivate`
+- `GET /api/admin/plans`
+- `POST /api/admin/plans`
+- `PATCH /api/admin/plans/:id`
+- `GET /api/admin/payments`
+
+### Planos iniciais
+
+Os preços e regras ficam no PostgreSQL, nunca espalhados pelo front-end:
+
+- `trial` (exibido como **Gratuito**): gratuito permanentemente, com até 30
+  produtos, 30 clientes, 50 vendas/mês e relatórios básicos;
+- `starter`: R$ 29,90/mês, até 1.000 produtos, 1.000 clientes e 1.000 vendas/mês;
+- `pro`: R$ 59,90/mês, com produtos, clientes e vendas ilimitados.
+
+O Gratuito oferece os módulos essenciais com limites de uso. O Starter amplia
+os limites e inclui relatórios avançados, mas não permite exportação de
+planilhas ou PDF. Pro acrescenta exportação Excel/PDF, backup automático e
+suporte prioritário. A plataforma
+possui uma conta por loja, portanto os planos não usam limites ou benefícios
+baseados em quantidade de usuários.
+
+O catálogo aceita somente os códigos `trial`, `starter` e `pro`. Planos antigos
+aposentados permanecem no banco apenas para preservar assinaturas históricas,
+mas não são retornados para novas contratações nem para edição administrativa.
+
+Use a tela `/admin/planos` para editar preços, features, limites, disponibilidade
+e destaque. Também é possível usar `PATCH /api/admin/plans/:id`.
+
+### Cadastro e compatibilidade
+
+O cadastro de cliente cria usuário e assinatura gratuita permanente na mesma
+transação. As contas antigas no código `trial` são mantidas no Gratuito sem
+data de expiração. Administradores não recebem assinatura. Quando um plano pago
+termina ou é cancelado, a conta retorna ao Gratuito em vez de perder o acesso à
+plataforma.
+
+Para testar, cadastre uma nova conta no front-end, abra `/assinatura` e confirme
+o status `Ativa` e os limites do Gratuito. Para simular suspensão, acesse
+`/admin/assinaturas`, use a ação **Suspender** e tente abrir um módulo do negócio
+com o cliente. Perfil, planos e `/assinatura` continuam acessíveis. Use
+**Reativar** para restaurar o acesso.
+
+### Pagamento e webhook
+
+O adaptador padrão `mock` cria somente pagamentos `pending`. A assinatura nunca
+é ativada por uma informação enviada pelo front-end. A confirmação acontece
+exclusivamente em um webhook autenticado e idempotente:
+
+```text
+POST /api/webhooks/payments/:provider
+X-Payment-Signature: sha256=<hmac-do-corpo-bruto>
+```
+
+Configure `PAYMENT_PROVIDER` e a credencial correspondente. Para o mock local,
+use `MOCK_PAYMENT_WEBHOOK_SECRET`. Eventos processados são registrados em
+`payment_webhook_events` por provedor e ID do evento.
+
+Para integrar Mercado Pago, Asaas, Stripe ou Pagar.me, implemente a interface
+`PaymentProvider`, registre o adaptador no `PaymentProviderRegistry` e mantenha
+no adaptador a validação de assinatura, tradução de status e IDs externos.
+
+### Exclusão de conta e histórico financeiro
+
+Os dados operacionais continuam seguindo a exclusão atual. A chave estrangeira
+de `subscriptions.user_id` usa `ON DELETE SET NULL`, preservando assinatura e
+pagamentos sem manter o vínculo com o usuário excluído. Esta é a política da
+primeira versão; requisitos fiscais futuros devem definir retenção e anonimização
+adicionais antes de produção.
+
 ## Migrations
 
 As migrations são executadas automaticamente na inicialização da aplicação. A migration inicial verifica se as tabelas já existem antes de criá-las, permitindo execução segura em bancos parcialmente configurados.
+
+As migrations de assinatura criam planos, assinaturas, pagamentos, eventos de
+webhook, seed/backfill e convertem datas contratuais para `timestamptz`.
 
 ### Executar migrations manualmente
 
@@ -222,7 +356,7 @@ Todos os DTOs usam `class-validator` para validação automática de entrada.
 
 ### Variáveis de Ambiente Necessárias
 - `DB_HOST` - Host do PostgreSQL
-- `DB_PORT` - Porta do PostgreSQL (padrão: 5432)
+- `DB_PORT` - Porta do PostgreSQL (padrão do PostgreSQL: 5432; Docker local: 5433)
 - `DB_USERNAME` - Usuário do banco
 - `DB_PASSWORD` - Senha do banco
 - `DB_DATABASE` - Nome do banco de dados
@@ -253,4 +387,3 @@ npm run test:e2e
 # Cobertura
 npm run test:cov
 ```
-

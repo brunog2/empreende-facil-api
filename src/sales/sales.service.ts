@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SalesRepository } from './repositories/sales.repository';
 import { ProductsRepository } from '../products/repositories/products.repository';
 import { CreateSaleDto } from './dto/create-sale.dto';
@@ -6,12 +10,15 @@ import { UpdateSaleDto } from './dto/update-sale.dto';
 import { FilterSalesDto } from './dto/filter-sales.dto';
 import { PaginatedResponse } from '../common/dto/pagination.dto';
 import { Sale } from './entities/sale.entity';
+import { PlanLimitService } from '../subscriptions/services/plan-limit.service';
+import { PlanLimit } from '../subscriptions/constants/subscription.constants';
 
 @Injectable()
 export class SalesService {
   constructor(
     private repository: SalesRepository,
     private productsRepository: ProductsRepository,
+    private planLimitService: PlanLimitService,
   ) {}
 
   async getAllSales(userId: string) {
@@ -34,6 +41,10 @@ export class SalesService {
   }
 
   async createSale(userId: string, data: CreateSaleDto) {
+    await this.planLimitService.assertCanCreate(
+      userId,
+      PlanLimit.SalesPerMonth,
+    );
     if (!data.items || data.items.length === 0) {
       throw new BadRequestException('A venda deve ter pelo menos um item');
     }
@@ -41,7 +52,10 @@ export class SalesService {
     // Validar estoque e calcular total
     let calculatedTotal = 0;
     for (const item of data.items) {
-      const product = await this.productsRepository.findById(item.productId, userId);
+      const product = await this.productsRepository.findById(
+        item.productId,
+        userId,
+      );
       if (!product) {
         throw new NotFoundException(`Produto ${item.productId} não encontrado`);
       }
@@ -65,11 +79,15 @@ export class SalesService {
     // Criar a venda com dados denormalizados do produto
     const itemsWithProductData = await Promise.all(
       data.items.map(async (item) => {
-        const product = await this.productsRepository.findById(item.productId, userId);
+        const product = await this.productsRepository.findById(
+          item.productId,
+          userId,
+        );
         return {
           ...item,
           productName: product?.name || null,
           productPrice: product?.salePrice || item.unitPrice,
+          productCostPrice: product?.costPrice ?? 0,
         };
       }),
     );
@@ -85,7 +103,10 @@ export class SalesService {
 
     // Atualizar estoque dos produtos
     for (const item of data.items) {
-      const product = await this.productsRepository.findById(item.productId, userId);
+      const product = await this.productsRepository.findById(
+        item.productId,
+        userId,
+      );
       if (product) {
         product.stockQuantity -= item.quantity;
         await this.productsRepository.update(product.id, userId, {
@@ -107,19 +128,26 @@ export class SalesService {
     if (data.items && data.items.length > 0) {
       let calculatedTotal = 0;
       for (const item of data.items) {
-        const product = await this.productsRepository.findById(item.productId, userId);
+        const product = await this.productsRepository.findById(
+          item.productId,
+          userId,
+        );
         if (!product) {
-          throw new NotFoundException(`Produto ${item.productId} não encontrado`);
+          throw new NotFoundException(
+            `Produto ${item.productId} não encontrado`,
+          );
         }
 
         // Verificar estoque disponível (considerando itens já vendidos)
-        const existingItem = sale.saleItems.find((si) => si.productId === item.productId);
-        
+        const existingItem = sale.saleItems.find(
+          (si) => si.productId === item.productId,
+        );
+
         if (existingItem) {
           // Se o item já existe na venda, calcular o estoque disponível
           // (estoque atual + quantidade já vendida = estoque disponível antes da venda)
           const availableStock = product.stockQuantity + existingItem.quantity;
-          
+
           // Só bloquear se a nova quantidade for MAIOR que o disponível
           // Se for menor ou igual, está OK (pode diminuir ou manter)
           if (item.quantity > availableStock) {
@@ -139,7 +167,10 @@ export class SalesService {
         calculatedTotal += item.quantity * item.unitPrice;
       }
 
-      if (data.totalAmount && Math.abs(calculatedTotal - data.totalAmount) > 0.01) {
+      if (
+        data.totalAmount &&
+        Math.abs(calculatedTotal - data.totalAmount) > 0.01
+      ) {
         throw new BadRequestException(
           `O valor total informado (${data.totalAmount}) não corresponde ao valor calculado (${calculatedTotal})`,
         );
@@ -173,7 +204,10 @@ export class SalesService {
       // Aplicar todas as mudanças de estoque ANTES de atualizar a venda
       // Isso garante que o estoque está correto antes de persistir a venda
       for (const [productId, quantityChange] of stockChanges.entries()) {
-        const product = await this.productsRepository.findById(productId, userId);
+        const product = await this.productsRepository.findById(
+          productId,
+          userId,
+        );
         if (product) {
           product.stockQuantity += quantityChange;
           await this.productsRepository.update(product.id, userId, {
@@ -185,11 +219,19 @@ export class SalesService {
       // Preparar itens com dados denormalizados do produto
       const itemsWithProductData = await Promise.all(
         data.items.map(async (item) => {
-          const product = await this.productsRepository.findById(item.productId, userId);
+          const product = await this.productsRepository.findById(
+            item.productId,
+            userId,
+          );
+          const existingItem = sale.saleItems.find(
+            (saleItem) => saleItem.productId === item.productId,
+          );
           return {
             ...item,
             productName: product?.name || null,
             productPrice: product?.salePrice || item.unitPrice,
+            productCostPrice:
+              existingItem?.productCostPrice ?? product?.costPrice ?? 0,
           };
         }),
       );
@@ -215,7 +257,10 @@ export class SalesService {
     // Restaurar estoque dos produtos (se produto ainda existir)
     for (const item of sale.saleItems) {
       if (item.productId) {
-        const product = await this.productsRepository.findById(item.productId, userId);
+        const product = await this.productsRepository.findById(
+          item.productId,
+          userId,
+        );
         if (product) {
           product.stockQuantity += item.quantity;
           await this.productsRepository.update(product.id, userId, {
@@ -239,7 +284,10 @@ export class SalesService {
       if (sale) {
         for (const item of sale.saleItems) {
           if (item.productId) {
-            const product = await this.productsRepository.findById(item.productId, userId);
+            const product = await this.productsRepository.findById(
+              item.productId,
+              userId,
+            );
             if (product) {
               product.stockQuantity += item.quantity;
               await this.productsRepository.update(product.id, userId, {
@@ -262,5 +310,3 @@ export class SalesService {
     return this.repository.getTopProducts(userId, limit);
   }
 }
-
-

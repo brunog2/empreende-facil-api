@@ -2,13 +2,17 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../users/users.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { AuthResponseDto } from './dto/auth-response.dto';
+} from "@nestjs/common";
+import { Inject, forwardRef } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import { UsersService } from "../users/users.service";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
+import { AuthResponseDto } from "./dto/auth-response.dto";
+import { DataSource, QueryFailedError } from "typeorm";
+import { User } from "../users/entities/user.entity";
+import { SubscriptionsService } from "../subscriptions/services/subscriptions.service";
 
 @Injectable()
 export class AuthService {
@@ -16,21 +20,45 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private dataSource: DataSource,
+    @Inject(forwardRef(() => SubscriptionsService))
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
     const existingUser = await this.usersService.findByEmail(registerDto.email);
     if (existingUser) {
-      throw new ConflictException('Email já está em uso');
+      throw new ConflictException("Email já está em uso");
     }
 
-    const user = await this.usersService.create({
-      email: registerDto.email,
-      password: registerDto.password,
-      fullName: registerDto.fullName,
-      businessName: registerDto.businessName,
-      phone: registerDto.phone,
-    });
+    let user: User;
+    try {
+      user = await this.dataSource.transaction(async (manager) => {
+        const createdUser = await this.usersService.create(
+          {
+            email: registerDto.email,
+            password: registerDto.password,
+            fullName: registerDto.fullName,
+            businessName: registerDto.businessName,
+            phone: registerDto.phone,
+          },
+          manager,
+        );
+        await this.subscriptionsService.createFreeSubscriptionForUser(
+          createdUser,
+          manager,
+        );
+        return createdUser;
+      });
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === "23505"
+      ) {
+        throw new ConflictException("Email já está em uso");
+      }
+      throw error;
+    }
 
     return this.generateTokens(user);
   }
@@ -38,7 +66,13 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<AuthResponseDto> {
     const user = await this.usersService.findByEmail(loginDto.email);
     if (!user) {
-      throw new UnauthorizedException('Credenciais inválidas');
+      throw new UnauthorizedException("Credenciais inválidas");
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException(
+        "Conta desativada. Entre em contato com o suporte",
+      );
     }
 
     const isPasswordValid = await this.usersService.validatePassword(
@@ -46,42 +80,43 @@ export class AuthService {
       loginDto.password,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciais inválidas');
+      throw new UnauthorizedException("Credenciais inválidas");
     }
 
+    await this.usersService.recordLogin(user);
     return this.generateTokens(user);
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResponseDto> {
     try {
       const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        secret: this.configService.get<string>("JWT_REFRESH_SECRET"),
       });
 
       const user = await this.usersService.findById(payload.sub);
-      if (!user) {
-        throw new UnauthorizedException('Usuário não encontrado');
+      if (!user || !user.isActive) {
+        throw new UnauthorizedException("Usuário não encontrado");
       }
 
       return this.generateTokens(user);
     } catch (error) {
-      throw new UnauthorizedException('Token inválido');
+      throw new UnauthorizedException("Token inválido");
     }
   }
 
-  private async generateTokens(user: any): Promise<AuthResponseDto> {
-    const payload = { sub: user.id, email: user.email };
+  private async generateTokens(user: User): Promise<AuthResponseDto> {
+    const payload = { sub: user.id, role: user.role };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '7d'),
+      secret: this.configService.get<string>("JWT_SECRET"),
+      expiresIn: this.configService.get<string>("JWT_EXPIRES_IN", "7d"),
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      secret: this.configService.get<string>("JWT_REFRESH_SECRET"),
       expiresIn: this.configService.get<string>(
-        'JWT_REFRESH_EXPIRES_IN',
-        '30d',
+        "JWT_REFRESH_EXPIRES_IN",
+        "30d",
       ),
     });
 
@@ -94,9 +129,10 @@ export class AuthService {
         fullName: user.fullName,
         businessName: user.businessName,
         phone: user.phone,
+        role: user.role,
+        isActive: user.isActive,
+        permissions: user.permissions || [],
       },
     };
   }
 }
-
-

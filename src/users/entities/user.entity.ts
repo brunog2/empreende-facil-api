@@ -5,12 +5,19 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  OneToOne,
 } from 'typeorm';
 import { Product } from '../../products/entities/product.entity';
 import { Sale } from '../../sales/entities/sale.entity';
 import { Customer } from '../../customers/entities/customer.entity';
 import { Expense } from '../../expenses/entities/expense.entity';
 import { Category } from '../../categories/entities/category.entity';
+import {
+  DEFAULT_USER_PERMISSIONS,
+  UserPermission,
+  UserRole,
+} from '../user-access.constants';
+import { Subscription } from '../../subscriptions/entities/subscription.entity';
 
 @Entity('users')
 export class User {
@@ -32,6 +39,22 @@ export class User {
   @Column({ nullable: true })
   phone: string | null;
 
+  @Column({ type: 'varchar', default: UserRole.Customer })
+  role: UserRole;
+
+  @Column({ name: 'is_active', default: true })
+  isActive: boolean;
+
+  @Column({
+    type: 'jsonb',
+    default: () =>
+      `'${JSON.stringify(DEFAULT_USER_PERMISSIONS)}'::jsonb`,
+  })
+  permissions: UserPermission[];
+
+  @Column({ name: 'last_login_at', type: 'timestamp', nullable: true })
+  lastLoginAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -52,6 +75,7 @@ export class User {
 
   @OneToMany(() => Category, (category) => category.user)
   categories: Category[];
+
+  @OneToOne(() => Subscription, (subscription) => subscription.user)
+  subscription: Subscription | null;
 }
-
-

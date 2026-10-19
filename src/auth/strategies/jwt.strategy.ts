@@ -17,13 +17,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; email: string }) {
+  async validate(payload: { sub: string; role: string }) {
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException('Usuário não encontrado');
     }
-    return { id: user.id, email: user.email };
+    if (!user.isActive) {
+      throw new UnauthorizedException('Conta desativada');
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions || [],
+    };
   }
 }
-
-

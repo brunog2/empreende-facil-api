@@ -8,6 +8,11 @@ import { SalesModule } from './sales/sales.module';
 import { CustomersModule } from './customers/customers.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { CategoriesModule } from './categories/categories.module';
+import { AdminModule } from './admin/admin.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { ReportsModule } from './reports/reports.module';
+import { BackupsModule } from './backups/backups.module';
 
 @Module({
   imports: [
@@ -15,6 +20,7 @@ import { CategoriesModule } from './categories/categories.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     AuthModule,
     UsersModule,
@@ -23,8 +29,10 @@ import { CategoriesModule } from './categories/categories.module';
     CustomersModule,
     ExpensesModule,
     CategoriesModule,
+    AdminModule,
+    SubscriptionsModule,
+    ReportsModule,
+    BackupsModule,
   ],
 })
 export class AppModule {}
-
-

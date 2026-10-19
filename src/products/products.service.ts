@@ -5,10 +5,15 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { PaginatedResponse } from '../common/dto/pagination.dto';
 import { Product } from './entities/product.entity';
+import { PlanLimitService } from '../subscriptions/services/plan-limit.service';
+import { PlanLimit } from '../subscriptions/constants/subscription.constants';
 
 @Injectable()
 export class ProductsService {
-  constructor(private repository: ProductsRepository) {}
+  constructor(
+    private repository: ProductsRepository,
+    private planLimitService: PlanLimitService,
+  ) {}
 
   async getAllProducts(userId: string) {
     return this.repository.findAll(userId);
@@ -26,6 +31,7 @@ export class ProductsService {
   }
 
   async createProduct(userId: string, data: CreateProductDto) {
+    await this.planLimitService.assertCanCreate(userId, PlanLimit.Products);
     // Validações de negócio
     if (data.salePrice < data.costPrice) {
       throw new BadRequestException(
@@ -94,5 +100,4 @@ export class ProductsService {
     return this.repository.findLowStock(userId);
   }
 }
-
 

@@ -1,8 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
+import {
+  DEFAULT_USER_PERMISSIONS,
+  UserPermission,
+  UserRole,
+} from './user-access.constants';
 
 @Injectable()
 export class UsersService {
@@ -17,18 +22,25 @@ export class UsersService {
     fullName: string;
     businessName?: string;
     phone?: string;
-  }): Promise<User> {
+    role?: UserRole;
+    permissions?: UserPermission[];
+  }, manager?: EntityManager): Promise<User> {
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    
-    const user = this.usersRepository.create({
+    const repository = manager?.getRepository(User) ?? this.usersRepository;
+
+    const user = repository.create({
       email: data.email,
       password: hashedPassword,
       fullName: data.fullName,
       businessName: data.businessName || null,
       phone: data.phone || null,
+      role: data.role || UserRole.Customer,
+      isActive: true,
+      permissions: data.permissions || DEFAULT_USER_PERMISSIONS,
+      lastLoginAt: null,
     });
 
-    return this.usersRepository.save(user);
+    return repository.save(user);
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -72,5 +84,9 @@ export class UsersService {
   async validatePassword(user: User, password: string): Promise<boolean> {
     return bcrypt.compare(password, user.password);
   }
-}
 
+  async recordLogin(user: User): Promise<void> {
+    user.lastLoginAt = new Date();
+    await this.usersRepository.save(user);
+  }
+}

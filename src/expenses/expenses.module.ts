@@ -4,13 +4,13 @@ import { ExpensesService } from './expenses.service';
 import { ExpensesController } from './expenses.controller';
 import { Expense } from './entities/expense.entity';
 import { ExpensesRepository } from './repositories/expenses.repository';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense])],
+  imports: [TypeOrmModule.forFeature([Expense]), SubscriptionsModule],
   controllers: [ExpensesController],
   providers: [ExpensesService, ExpensesRepository],
   exports: [ExpensesService],
 })
 export class ExpensesModule {}
-
 

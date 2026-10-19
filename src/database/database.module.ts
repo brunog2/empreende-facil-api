@@ -15,7 +15,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         database: configService.get('DB_DATABASE', 'empreende_facil'),
         entities: [__dirname + '/../**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        synchronize: configService.get('NODE_ENV') === 'development',
+        // Migrations are the single source of truth for the database schema.
+        // Enabling synchronize here creates columns before the startup migrations
+        // run and makes an existing local database fail with duplicate columns.
+        synchronize: false,
         logging: configService.get('NODE_ENV') === 'development',
         ssl: configService.get('NODE_ENV') === 'production' ? {
           rejectUnauthorized: false,
@@ -26,5 +29,4 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   ],
 })
 export class DatabaseModule {}
-
 
