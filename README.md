@@ -29,15 +29,12 @@ cp .env.example .env
 ### 3. Iniciar PostgreSQL com Docker
 
 ```bash
-cd docker
-docker-compose up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
-### 4. Executar migrations
+### 4. Migrations
 
-```bash
-npm run migration:run
-```
+As migrations são executadas automaticamente ao iniciar a API.
 
 ### 5. Iniciar o servidor
 
@@ -243,8 +240,8 @@ Os preços e regras ficam no PostgreSQL, nunca espalhados pelo front-end:
 
 - `trial` (exibido como **Gratuito**): gratuito permanentemente, com até 30
   produtos, 30 clientes, 50 vendas/mês e relatórios básicos;
-- `starter`: R$ 49,90/mês, até 1.000 produtos, 1.000 clientes e 1.000 vendas/mês;
-- `pro`: R$ 79,90/mês, com produtos, clientes e vendas ilimitados.
+- `starter`: R$ 29,90/mês, até 1.000 produtos, 1.000 clientes e 1.000 vendas/mês;
+- `pro`: R$ 59,90/mês, com produtos, clientes e vendas ilimitados.
 
 O Gratuito oferece os módulos essenciais com limites de uso. O Starter amplia
 os limites e inclui relatórios avançados, mas não permite exportação de
@@ -359,7 +356,7 @@ Todos os DTOs usam `class-validator` para validação automática de entrada.
 
 ### Variáveis de Ambiente Necessárias
 - `DB_HOST` - Host do PostgreSQL
-- `DB_PORT` - Porta do PostgreSQL (padrão: 5432)
+- `DB_PORT` - Porta do PostgreSQL (padrão do PostgreSQL: 5432; Docker local: 5433)
 - `DB_USERNAME` - Usuário do banco
 - `DB_PASSWORD` - Senha do banco
 - `DB_DATABASE` - Nome do banco de dados
