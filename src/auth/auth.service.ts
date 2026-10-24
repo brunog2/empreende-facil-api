@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   UnauthorizedException,
   ConflictException,
 } from "@nestjs/common";
@@ -85,6 +86,33 @@ export class AuthService {
 
     await this.usersService.recordLogin(user);
     return this.generateTokens(user);
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException("Usuário não encontrado");
+    }
+
+    const isCurrentValid = await this.usersService.validatePassword(
+      user,
+      currentPassword,
+    );
+    if (!isCurrentValid) {
+      throw new BadRequestException("Senha atual incorreta");
+    }
+
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        "A nova senha deve ser diferente da senha atual",
+      );
+    }
+
+    await this.usersService.updatePassword(user.id, newPassword);
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResponseDto> {

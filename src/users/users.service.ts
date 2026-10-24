@@ -81,6 +81,11 @@ export class UsersService {
     }
   }
 
+  async updatePassword(id: string, password: string): Promise<void> {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await this.usersRepository.update(id, { password: hashedPassword });
+  }
+
   async validatePassword(user: User, password: string): Promise<boolean> {
     return bcrypt.compare(password, user.password);
   }
