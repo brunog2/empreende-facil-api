@@ -3,20 +3,34 @@ import { ReportsService } from './reports.service';
 
 describe('ReportsService', () => {
   it('retorna CMV e resultado operacional calculados no banco', async () => {
-    const query = jest.fn().mockResolvedValue([
-      {
-        revenue: '1000.00',
-        expenses: '200.00',
-        costOfGoodsSold: '400.00',
-        profit: '400.00',
-        salesCount: '10',
-        averageTicket: '100.00',
-        products: '20',
-        customers: '8',
-        lowStockProducts: '2',
-        stockValue: '1500.00',
-      },
-    ]);
+    const query = jest.fn(async (sql: string) => {
+      if (sql.includes('is_recurring')) {
+        return [
+          {
+            description: 'Aluguel',
+            amount: '200.00',
+            category: 'Fixo',
+            expenseDate: '2026-07-15',
+            isRecurring: false,
+            recurrencePeriod: null,
+          },
+        ];
+      }
+      return [
+        {
+          revenue: '1000.00',
+          expenses: '200.00',
+          costOfGoodsSold: '400.00',
+          profit: '400.00',
+          salesCount: '10',
+          averageTicket: '100.00',
+          products: '20',
+          customers: '8',
+          lowStockProducts: '2',
+          stockValue: '1500.00',
+        },
+      ];
+    });
     const dataSource = { query } as unknown as DataSource;
     const service = new ReportsService(dataSource);
 
@@ -29,6 +43,7 @@ describe('ReportsService', () => {
       revenue: '1000.00',
       expenses: '200.00',
       costOfGoodsSold: '400.00',
+      productProfit: '600.00',
       operatingResult: '400.00',
       profit: '400.00',
     });

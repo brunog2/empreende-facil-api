@@ -24,6 +24,10 @@ export class ReportExportService {
       { label: 'Despesas', value: Number(data.summary.expenses) },
       { label: 'CMV', value: Number(data.summary.costOfGoodsSold) },
       {
+        label: 'Lucro dos produtos',
+        value: Number(data.summary.productProfit),
+      },
+      {
         label: 'Resultado operacional estimado',
         value: Number(data.summary.operatingResult),
       },
@@ -59,6 +63,7 @@ export class ReportExportService {
       { header: 'Categoria', key: 'category', width: 24 },
       { header: 'Custo', key: 'costPrice', width: 16 },
       { header: 'Venda', key: 'salePrice', width: 16 },
+      { header: 'Lucro unitário', key: 'unitProfit', width: 18 },
       { header: 'Estoque', key: 'stockQuantity', width: 16 },
     ];
     products.addRows(
@@ -66,12 +71,36 @@ export class ReportExportService {
         ...item,
         costPrice: Number(item.costPrice),
         salePrice: Number(item.salePrice),
+        unitProfit: Number(item.salePrice) - Number(item.costPrice),
         stockQuantity: Number(item.stockQuantity),
       })),
     );
     products.getColumn('costPrice').numFmt = 'R$ #,##0.00';
     products.getColumn('salePrice').numFmt = 'R$ #,##0.00';
+    products.getColumn('unitProfit').numFmt = 'R$ #,##0.00';
     this.styleWorksheet(products);
+
+    const soldProducts = workbook.addWorksheet('Lucro dos produtos');
+    soldProducts.columns = [
+      { header: 'Produto', key: 'name', width: 34 },
+      { header: 'Quantidade', key: 'quantity', width: 16 },
+      { header: 'Receita', key: 'revenue', width: 16 },
+      { header: 'Custo', key: 'cost', width: 16 },
+      { header: 'Lucro', key: 'profit', width: 16 },
+    ];
+    soldProducts.addRows(
+      data.soldProducts.map((item) => ({
+        name: item.name,
+        quantity: Number(item.quantity),
+        revenue: Number(item.revenue),
+        cost: Number(item.cost),
+        profit: Number(item.profit),
+      })),
+    );
+    soldProducts.getColumn('revenue').numFmt = 'R$ #,##0.00';
+    soldProducts.getColumn('cost').numFmt = 'R$ #,##0.00';
+    soldProducts.getColumn('profit').numFmt = 'R$ #,##0.00';
+    this.styleWorksheet(soldProducts);
 
     const customers = workbook.addWorksheet('Clientes');
     customers.columns = [
@@ -128,6 +157,7 @@ export class ReportExportService {
         ['Faturamento', money(data.summary.revenue)],
         ['Despesas', money(data.summary.expenses)],
         ['CMV', money(data.summary.costOfGoodsSold)],
+        ['Lucro dos produtos', money(data.summary.productProfit)],
         ['Resultado operacional estimado', money(data.summary.operatingResult)],
         ['Ticket médio', money(data.summary.averageTicket)],
         ['Vendas', String(data.summary.salesCount)],
@@ -143,6 +173,17 @@ export class ReportExportService {
           .fillColor('#374151')
           .text(`${label}: `, { continued: true });
         document.fillColor('#111827').text(value);
+      }
+
+      this.addTableTitle(document, 'Lucro dos produtos');
+      for (const product of data.soldProducts.slice(0, 30)) {
+        this.ensureSpace(document);
+        document
+          .fontSize(9)
+          .fillColor('#374151')
+          .text(
+            `${product.name} · qtd ${product.quantity} · receita ${money(product.revenue)} · lucro ${money(product.profit)}`,
+          );
       }
 
       this.addTableTitle(document, 'Vendas recentes');

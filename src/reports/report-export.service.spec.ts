@@ -7,6 +7,7 @@ const report: ReportExportData = {
     revenue: '100.00',
     expenses: '20.00',
     costOfGoodsSold: '30.00',
+    productProfit: '70.00',
     operatingResult: '50.00',
     profit: '50.00',
     salesCount: 1,
@@ -31,6 +32,15 @@ const report: ReportExportData = {
       costPrice: '50.00',
       salePrice: '100.00',
       stockQuantity: '1',
+    },
+  ],
+  soldProducts: [
+    {
+      name: 'Produto Teste',
+      quantity: '1',
+      revenue: '100.00',
+      cost: '30.00',
+      profit: '70.00',
     },
   ],
   customers: [

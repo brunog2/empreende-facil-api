@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ReportPeriodDto } from './dto/report-query.dto';
 import { LOW_STOCK_THRESHOLD } from '../products/products.constants';
+import { projectExpenses } from '../expenses/recurring-expenses';
 
 interface Period {
   start: Date;
@@ -35,6 +36,7 @@ interface NamedTotalRow {
   name: string;
   total: string;
   count?: string;
+  profit?: string;
 }
 
 interface CustomerGrowthRow {
@@ -57,6 +59,13 @@ export interface ReportExportData {
     costPrice: string;
     salePrice: string;
     stockQuantity: string;
+  }>;
+  soldProducts: Array<{
+    name: string;
+    quantity: string;
+    revenue: string;
+    cost: string;
+    profit: string;
   }>;
   customers: Array<{
     name: string;
@@ -127,16 +136,26 @@ export class ReportsService {
     )) as SummaryRow[];
     const row = rows[0];
     const salesCount = Number(row?.salesCount ?? 0);
+    const projectedExpenses = await this.loadProjectedExpenses(userId, period);
+    const expensesTotal = projectedExpenses.reduce(
+      (sum, expense) => sum + expense.amount,
+      0,
+    );
+    const revenue = Number(row?.revenue ?? 0);
+    const costOfGoodsSold = Number(row?.costOfGoodsSold ?? 0);
+    const productProfit = revenue - costOfGoodsSold;
+    const operatingResult = productProfit - expensesTotal;
 
     return {
       period: { startDate: period.startDate, endDate: period.endDate },
       summary: {
         revenue: row?.revenue ?? '0.00',
-        expenses: row?.expenses ?? '0.00',
+        expenses: expensesTotal.toFixed(2),
         costOfGoodsSold: row?.costOfGoodsSold ?? '0.00',
-        operatingResult: row?.profit ?? '0.00',
+        productProfit: productProfit.toFixed(2),
+        operatingResult: operatingResult.toFixed(2),
         // Compatibilidade temporária com clientes que ainda consomem `profit`.
-        profit: row?.profit ?? '0.00',
+        profit: operatingResult.toFixed(2),
         salesCount,
         averageTicket: row?.averageTicket ?? '0.00',
         products: Number(row?.products ?? 0),
@@ -153,7 +172,6 @@ export class ReportsService {
       monthly,
       topProducts,
       paymentMethods,
-      expenseCategories,
       customerGrowth,
     ] = await Promise.all([
       this.dataSource.query(
@@ -198,7 +216,8 @@ export class ReportsService {
         `
             SELECT COALESCE(si.product_name, p.name, 'Produto removido') AS name,
               SUM(si.subtotal)::decimal(14,2)::text AS total,
-              SUM(si.quantity)::decimal(14,3)::text AS count
+              SUM(si.quantity)::decimal(14,3)::text AS count,
+              SUM(si.subtotal - COALESCE(si.product_cost_price, 0) * si.quantity)::decimal(14,2)::text AS profit
             FROM sale_items si
             INNER JOIN sales s ON s.id = si.sale_id
             LEFT JOIN products p ON p.id = si.product_id
@@ -223,16 +242,6 @@ export class ReportsService {
       ) as Promise<NamedTotalRow[]>,
       this.dataSource.query(
         `
-            SELECT category AS name, SUM(amount)::decimal(14,2)::text AS total
-            FROM expenses
-            WHERE user_id = $1 AND expense_date >= $2 AND expense_date < $3
-            GROUP BY category
-            ORDER BY SUM(amount) DESC
-          `,
-        [userId, period.start, period.endExclusive],
-      ) as Promise<NamedTotalRow[]>,
-      this.dataSource.query(
-        `
             SELECT TO_CHAR(month, 'YYYY-MM') AS month,
               COUNT(customers.id)::text AS "newCustomers"
             FROM GENERATE_SERIES(
@@ -250,31 +259,51 @@ export class ReportsService {
       ) as Promise<CustomerGrowthRow[]>,
     ]);
 
+    const projectedExpenses = await this.loadProjectedExpenses(userId, period);
+    const expensesByMonth = new Map<string, number>();
+    const expensesByCategory = new Map<string, number>();
+    for (const expense of projectedExpenses) {
+      const month = expense.date.slice(0, 7);
+      expensesByMonth.set(month, (expensesByMonth.get(month) ?? 0) + expense.amount);
+      expensesByCategory.set(
+        expense.category,
+        (expensesByCategory.get(expense.category) ?? 0) + expense.amount,
+      );
+    }
+
     return {
       period: { startDate: period.startDate, endDate: period.endDate },
-      monthlyEvolution: monthly.map((item) => ({
-        month: item.month,
-        revenue: item.revenue,
-        expenses: item.expenses,
-        costOfGoodsSold: item.costOfGoodsSold,
-        operatingResult: item.profit,
-        // Compatibilidade temporária com clientes que ainda consomem `profit`.
-        profit: item.profit,
-      })),
+      monthlyEvolution: monthly.map((item) => {
+        const expenses = expensesByMonth.get(item.month) ?? 0;
+        const revenue = Number(item.revenue);
+        const costOfGoodsSold = Number(item.costOfGoodsSold);
+        const productProfit = revenue - costOfGoodsSold;
+        const operatingResult = productProfit - expenses;
+        return {
+          month: item.month,
+          revenue: item.revenue,
+          expenses: expenses.toFixed(2),
+          costOfGoodsSold: item.costOfGoodsSold,
+          productProfit: productProfit.toFixed(2),
+          operatingResult: operatingResult.toFixed(2),
+          // Compatibilidade temporária com clientes que ainda consomem `profit`.
+          profit: operatingResult.toFixed(2),
+        };
+      }),
       topProducts: topProducts.map((item) => ({
         name: item.name,
         revenue: item.total,
         quantity: Number(item.count ?? 0),
+        profit: item.profit ?? '0.00',
       })),
       salesByPaymentMethod: paymentMethods.map((item) => ({
         name: item.name,
         total: item.total,
         count: Number(item.count ?? 0),
       })),
-      expensesByCategory: expenseCategories.map((item) => ({
-        name: item.name,
-        total: item.total,
-      })),
+      expensesByCategory: Array.from(expensesByCategory.entries())
+        .map(([name, total]) => ({ name, total: total.toFixed(2) }))
+        .sort((left, right) => Number(right.total) - Number(left.total)),
       customerGrowth: customerGrowth.map((item) => ({
         month: item.month,
         newCustomers: Number(item.newCustomers),
@@ -287,7 +316,7 @@ export class ReportsService {
     query: ReportPeriodDto,
   ): Promise<ReportExportData> {
     const period = this.normalizePeriod(query);
-    const [report, sales, products, customers, expenses] = await Promise.all([
+    const [report, sales, products, customers, soldProducts] = await Promise.all([
       this.getSummary(userId, query),
       this.dataSource.query(
         `SELECT s.sale_date AS date, c.name AS customer,
@@ -309,20 +338,62 @@ export class ReportsService {
         [userId],
       ) as Promise<ReportExportData['customers']>,
       this.dataSource.query(
-        `SELECT expense_date AS date, description, category, amount::text AS amount
-         FROM expenses WHERE user_id = $1 AND expense_date >= $2 AND expense_date < $3
-         ORDER BY expense_date DESC`,
+        `SELECT COALESCE(si.product_name, p.name, 'Produto removido') AS name,
+          SUM(si.quantity)::decimal(14,3)::text AS quantity,
+          SUM(si.subtotal)::decimal(14,2)::text AS revenue,
+          SUM(COALESCE(si.product_cost_price, 0) * si.quantity)::decimal(14,2)::text AS cost,
+          SUM(si.subtotal - COALESCE(si.product_cost_price, 0) * si.quantity)::decimal(14,2)::text AS profit
+         FROM sale_items si
+         INNER JOIN sales s ON s.id = si.sale_id
+         LEFT JOIN products p ON p.id = si.product_id
+         WHERE s.user_id = $1 AND s.sale_date >= $2 AND s.sale_date < $3
+         GROUP BY COALESCE(si.product_name, p.name, 'Produto removido')
+         ORDER BY SUM(si.subtotal - COALESCE(si.product_cost_price, 0) * si.quantity) DESC`,
         [userId, period.start, period.endExclusive],
-      ) as Promise<ReportExportData['expenses']>,
+      ) as Promise<ReportExportData['soldProducts']>,
     ]);
+    const projectedExpenses = await this.loadProjectedExpenses(userId, period);
     return {
       period: report.period,
       summary: report.summary,
       sales,
       products,
       customers,
-      expenses,
+      soldProducts,
+      expenses: projectedExpenses
+        .sort((left, right) => right.date.localeCompare(left.date))
+        .map((expense) => ({
+          date: new Date(`${expense.date}T00:00:00`),
+          description: expense.description,
+          category: expense.category,
+          amount: expense.amount.toFixed(2),
+        })),
     };
+  }
+
+  private async loadProjectedExpenses(userId: string, period: Period) {
+    const rows = (await this.dataSource.query(
+      `SELECT description, amount::text AS amount, category,
+        expense_date::text AS "expenseDate",
+        is_recurring AS "isRecurring",
+        recurrence_period AS "recurrencePeriod"
+       FROM expenses
+       WHERE user_id = $1
+         AND (
+           (is_recurring = false AND expense_date >= $2 AND expense_date < $3)
+           OR (is_recurring = true AND expense_date < $3)
+         )`,
+      [userId, period.start, period.endExclusive],
+    )) as Array<{
+      description: string;
+      amount: string;
+      category: string;
+      expenseDate: string;
+      isRecurring: boolean;
+      recurrencePeriod: string | null;
+    }>;
+
+    return projectExpenses(rows, period.startDate, period.endDate);
   }
 
   private normalizePeriod(query: ReportPeriodDto): Period {
