@@ -229,16 +229,6 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
         }),
       );
 
-      await queryRunner.createForeignKey(
-        'products',
-        new TableForeignKey({
-          columnNames: ['category'],
-          referencedColumnNames: ['id'],
-          referencedTableName: 'categories',
-          onDelete: 'SET NULL',
-        }),
-      );
-
       await queryRunner.createIndex(
         'products',
         new TableIndex({
