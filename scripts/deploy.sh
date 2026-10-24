@@ -9,8 +9,11 @@ API_IMAGE="${API_IMAGE:-ghcr.io/brunog2/empreende-facil-api:latest}"
 
 if [ "$(id -u)" -eq 0 ]; then
   PODMAN="podman"
+  systemctl enable --now podman.socket
 else
-  PODMAN="sudo podman"
+  sudo systemctl enable --now podman.socket
+  # sudo drops API_IMAGE unless it is preserved, and Compose would fall back to :latest.
+  PODMAN="sudo --preserve-env=API_IMAGE,NGINX_CONF podman"
 fi
 
 if [ ! -f "$ENV_FILE" ]; then
