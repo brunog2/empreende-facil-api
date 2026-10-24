@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily renewal check for the Empreende Facil API certificate
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

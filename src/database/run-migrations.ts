@@ -11,7 +11,7 @@ export async function runMigrations(configService: ConfigService): Promise<void>
     database: configService.get('DB_DATABASE', 'empreende_facil'),
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/migrations/*{.ts,.js}'],
-    ssl: configService.get('NODE_ENV') === 'production' ? {
+    ssl: configService.get('DB_SSL') === 'true' ? {
       rejectUnauthorized: false,
     } : false,
   });
@@ -44,8 +44,9 @@ export async function runMigrations(configService: ConfigService): Promise<void>
         console.error('❌ Error destroying data source:', destroyError);
       }
     }
-    // Não lançar erro para não impedir o startup se migrations falharem
-    // A aplicação ainda pode iniciar se as tabelas já existirem
+    if (configService.get('NODE_ENV') === 'production') {
+      throw error;
+    }
   }
 }
 

@@ -20,7 +20,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         // run and makes an existing local database fail with duplicate columns.
         synchronize: false,
         logging: configService.get('NODE_ENV') === 'development',
-        ssl: configService.get('NODE_ENV') === 'production' ? {
+        ssl: configService.get('DB_SSL') === 'true' ? {
           rejectUnauthorized: false,
         } : false,
       }),

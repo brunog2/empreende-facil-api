@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew the Empreende Facil API certificate
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /opt/empreende-facil/app/scripts/renew-cert.sh

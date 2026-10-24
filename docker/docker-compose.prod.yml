@@ -1,0 +1,85 @@
+name: empreende-facil
+
+services:
+  postgres:
+    image: docker.io/library/postgres:15-alpine
+    container_name: empreende-facil-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=2MB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    mem_limit: 140m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      empreende-network:
+        aliases:
+          - postgres
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/brunog2/empreende-facil-api:latest}
+    container_name: empreende-facil-api
+    restart: unless-stopped
+    env_file:
+      - /opt/empreende-facil/.env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_SSL: "false"
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=160
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 250m
+    networks:
+      empreende-network:
+        aliases:
+          - api
+
+  nginx:
+    image: docker.io/library/nginx:1.27-alpine
+    container_name: empreende-facil-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ${NGINX_CONF:-./nginx/https.conf}:/etc/nginx/conf.d/default.conf:ro,z
+      - /opt/empreende-facil/certbot-www:/var/www/certbot:z
+      - /opt/empreende-facil/letsencrypt:/etc/letsencrypt:ro,z
+    depends_on:
+      - api
+    mem_limit: 32m
+    networks:
+      - empreende-network
+
+  certbot:
+    image: docker.io/certbot/certbot:v2.11.0
+    profiles: ["certbot"]
+    volumes:
+      - /opt/empreende-facil/certbot-www:/var/www/certbot:z
+      - /opt/empreende-facil/letsencrypt:/etc/letsencrypt:z
+    entrypoint: ["certbot"]
+
+volumes:
+  postgres_data:
+
+networks:
+  empreende-network:
+    driver: bridge
