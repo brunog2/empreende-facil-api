@@ -615,26 +615,6 @@ export class CreateInitialTables1700000000000 implements MigrationInterface {
       EXECUTE FUNCTION update_updated_at_column();
     `);
 
-    // Create trigger to update product stock on sale (CREATE OR REPLACE é seguro)
-    await queryRunner.query(`
-      CREATE OR REPLACE FUNCTION update_product_stock_on_sale()
-      RETURNS TRIGGER AS $$
-      BEGIN
-        UPDATE products
-        SET stock_quantity = stock_quantity - NEW.quantity
-        WHERE id = NEW.product_id;
-        RETURN NEW;
-      END;
-      $$ language 'plpgsql';
-    `);
-
-    await queryRunner.query(`
-      DROP TRIGGER IF EXISTS on_sale_item_created ON sale_items;
-      CREATE TRIGGER on_sale_item_created
-      AFTER INSERT ON sale_items
-      FOR EACH ROW
-      EXECUTE FUNCTION update_product_stock_on_sale();
-    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
